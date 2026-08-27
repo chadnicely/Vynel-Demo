@@ -6,8 +6,10 @@ import {
   SherpaSpeechRecognizer,
   SherpaVoiceEngine,
   type SpeechRecognizer,
+  type SynthesizeOptions,
   type VoiceEngine,
 } from '@vynel/voice-engine'
+import { serializeAsync } from './call/serialize-async.js'
 import { EngineRelaySpeechRecognizer, EngineRelayVoiceEngine } from './engine-relay-engines.js'
 import { findMissingModelFile, resolveVoiceModelConfigs, type VoiceModelConfigs } from './models.js'
 import { planVoiceReload, type VoiceSelection } from './voice-selection.js'
@@ -25,12 +27,13 @@ export interface VoiceEngineRelayOptions {
 // while the provider-backed halves are stateless HTTP relays to the engine
 // (constructed once; the engine resolves provider + voice per request). So a
 // reload re-creates only the sherpa engine whose model changed and is on the
-// disk, and a source flip is pure getter rewiring — the serialized lanes in
+// disk, and a source flip is pure getter rewiring — the shared lanes in
 // main.ts read the holder at call time, never a captured engine. Genuinely
 // stateful, hence a class.
 export class VoiceEngines {
   #sherpaSynthesizer: SherpaVoiceEngine
   #sherpaRecognizer: SherpaSpeechRecognizer
+  readonly #sherpaLane: VoiceEngine
   readonly #relaySynthesizer: VoiceEngine & { readonly voiceCount: number; readonly sampleRate: number }
   readonly #relayRecognizer: EngineRelaySpeechRecognizer
   #selection: VoiceSelection
@@ -54,10 +57,22 @@ export class VoiceEngines {
     })
     this.#sherpaSynthesizer = new SherpaVoiceEngine({ tts: this.#configs.tts })
     this.#sherpaRecognizer = new SherpaSpeechRecognizer({ stt: this.#configs.stt })
+    // The serialized lane in front of the NATIVE synthesizer — the sherpa
+    // addon is one instance shared by the wake line, every call loop, and the
+    // overlay door, and it cannot take concurrent calls. A provider relay is
+    // plain HTTP and needs no mutex, so only the native half rides this lane —
+    // including the relay's local FALLBACK below, so a failed cloud line can
+    // never race a native call. Reads the engine at call time: a reload's swap
+    // lands between calls.
+    this.#sherpaLane = {
+      synthesize: serializeAsync((text: string, options?: SynthesizeOptions) =>
+        this.#sherpaSynthesizer.synthesize(text, options),
+      ),
+    }
     this.#relaySynthesizer = new FallbackVoiceEngine({
       primary: new EngineRelayVoiceEngine(relay.apiUrl, relay.fetchImplementation),
       // A thunk: a reload may swap the local engine under the wrapper.
-      fallback: () => this.#sherpaSynthesizer,
+      fallback: () => this.#sherpaLane,
       onFallback: (error) =>
         this.#logger.warn(
           { error: error instanceof Error ? error.message : String(error) },
@@ -86,8 +101,8 @@ export class VoiceEngines {
     return new VoiceEngines(modelsDir, selection, logger, relay)
   }
 
-  get synthesizer() {
-    return this.#selection.ttsSource === 'local' ? this.#sherpaSynthesizer : this.#relaySynthesizer
+  get synthesizer(): VoiceEngine {
+    return this.#selection.ttsSource === 'local' ? this.#sherpaLane : this.#relaySynthesizer
   }
 
   /** The WAKE recognizer — pinned to the local model: the always-on mic never

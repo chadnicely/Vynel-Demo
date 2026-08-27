@@ -44,6 +44,12 @@ export type VoiceDaemonEvent =
    *  Goes to app surfaces only: the dock is already the wake window, and a
    *  wake target has a conversation to run, not a view to switch. */
   | { kind: 'show-display' }
+  /** The assistant is about to be HEARD (a routed `speak` line) and the DOCK
+   *  should be visible for it — a spoken line with no pixels anywhere is a
+   *  voice from nowhere. Goes to dock surfaces only, and broadcast (unlike
+   *  `speak`, which is single-delivery to whoever plays the audio): the dock
+   *  must appear whichever window ends up playing the line. */
+  | { kind: 'show-dock' }
 
 /** A voice conversation's phase as one window reports it to the others — the
  *  same five the orb has, minus the daemon's own `wake`, which never belongs to
@@ -109,6 +115,8 @@ export function parseVoiceDaemonEvent(raw: unknown): VoiceDaemonEvent | null {
     }
     case 'show-display':
       return { kind: 'show-display' }
+    case 'show-dock':
+      return { kind: 'show-dock' }
     case 'speak':
       return typeof candidate['text'] === 'string' && candidate['text'] !== ''
         ? {

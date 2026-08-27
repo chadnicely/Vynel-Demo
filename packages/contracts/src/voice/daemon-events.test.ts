@@ -52,9 +52,10 @@ describe('voice daemon events', () => {
     })
   })
 
-  it('carries show-display, and never invents an api-only frame', () => {
-    // A payload-free kind — the daemon is asking, not describing.
+  it('carries show-display and show-dock, and never invents an api-only frame', () => {
+    // Payload-free kinds — the daemon is asking, not describing.
     expect(parseVoiceDaemonEvent({ kind: 'show-display' })).toEqual({ kind: 'show-display' })
+    expect(parseVoiceDaemonEvent({ kind: 'show-dock' })).toEqual({ kind: 'show-dock' })
     // `display-active` and `daemon-link` are the API's own words on the voice
     // channel; a daemon claiming them is not a daemon event.
     expect(parseVoiceDaemonEvent({ kind: 'display-active', active: true })).toBeNull()

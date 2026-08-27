@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, watch, type ComputedRef } from "vue";
+import { computed, onScopeDispose, ref, watch, type ComputedRef } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useUiStore, type ChatMainView, type ShellTab } from "../../stores/ui-store.js";
 import { useLiveChannelStore } from "../../stores/live-channel-store.js";
@@ -74,7 +74,24 @@ export function useDisplayToggle(): DisplayToggle {
     // house rule bans console output — `notifySessionEnd` is the precedent.)
     void vynel.voice.setDisplayActive({ active }).catch(() => {});
   }
-  watch(isDisplayActive, announceDisplayActive, { immediate: true });
+  // The route cannot see a MINIMIZED window: without this, a window minimized
+  // while on the Display kept announcing "the room is on screen", and the
+  // dock's one-orb rule hid the corner row while speech played with zero
+  // pixels anywhere. WebView2 fires `visibilitychange` on minimize/restore;
+  // occlusion by other windows does not count — an unfocused-but-visible room
+  // still draws its orb, and the announcement stays honest.
+  const isDocumentVisible = ref(document.visibilityState === "visible");
+  function readDocumentVisibility(): void {
+    isDocumentVisible.value = document.visibilityState === "visible";
+  }
+  document.addEventListener("visibilitychange", readDocumentVisibility);
+  onScopeDispose(() =>
+    document.removeEventListener("visibilitychange", readDocumentVisibility),
+  );
+  const isDisplayOnScreen = computed(
+    () => isDisplayActive.value && isDocumentVisible.value,
+  );
+  watch(isDisplayOnScreen, announceDisplayActive, { immediate: true });
   // An engine restart empties the hub's memo of this, and nothing about the
   // room changed to announce it again — so a reconnect says it over. Off the
   // socket coming back rather than a retry: the dock is on the other end of
@@ -82,7 +99,7 @@ export function useDisplayToggle(): DisplayToggle {
   watch(
     () => live.status,
     (status) => {
-      if (status === "open") announceDisplayActive(isDisplayActive.value);
+      if (status === "open") announceDisplayActive(isDisplayOnScreen.value);
     },
   );
   // The window is going away and the room with it.

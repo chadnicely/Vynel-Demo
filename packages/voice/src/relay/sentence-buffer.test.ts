@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { CLAUSE_CUT_CHARS, SpokenSentenceBuffer } from './sentence-buffer.js'
+import {
+  CLAUSE_CUT_CHARS,
+  FIRST_CHUNK_CLAUSE_CUT_CHARS,
+  SpokenSentenceBuffer,
+} from './sentence-buffer.js'
 
 describe('SpokenSentenceBuffer', () => {
   it('emits a complete sentence once its boundary arrives, keeping the partial tail buffered', () => {
@@ -45,14 +49,28 @@ describe('SpokenSentenceBuffer — the clause-level cut (VR4)', () => {
     'the first one is at nine with the design team, then a quick sync with Sam, ' + // +75 = 147
     'and the last one is lunch with the investors at one.' // +52 = 199
 
-  it('cuts a long sentence at the last clause break within the cut length instead of waiting for its end', () => {
+  it('cuts a long sentence at clause breaks — the first chunk tight, the rest at the cut length', () => {
     const buffer = new SpokenSentenceBuffer()
     const chunks = [...buffer.push(LONG_SENTENCE), ...buffer.flush()]
     expect(chunks).toEqual([
-      'I checked your schedules, and you have three meetings tomorrow morning, the first one is at nine with the design team,',
+      'I checked your schedules,',
+      'and you have three meetings tomorrow morning, the first one is at nine with the design team,',
       'then a quick sync with Sam, and the last one is lunch with the investors at one.',
     ])
-    expect(chunks[0]!.length).toBeLessThanOrEqual(CLAUSE_CUT_CHARS)
+    expect(chunks[0]!.length).toBeLessThanOrEqual(FIRST_CHUNK_CLAUSE_CUT_CHARS)
+    expect(chunks[1]!.length).toBeLessThanOrEqual(CLAUSE_CUT_CHARS)
+  })
+
+  it('only the FIRST chunk cuts tight — the same sentence later in the turn stays whole', () => {
+    const sentence = 'I checked the calendar for tomorrow, and the morning is completely free. '
+    const buffer = new SpokenSentenceBuffer()
+    expect(buffer.push(sentence)).toEqual([
+      'I checked the calendar for tomorrow,',
+      'and the morning is completely free.',
+    ])
+    expect(buffer.push(sentence)).toEqual([
+      'I checked the calendar for tomorrow, and the morning is completely free.',
+    ])
   })
 
   it('produces the same chunks token by token as in one push', () => {
@@ -101,7 +119,7 @@ describe('SpokenSentenceBuffer — the clause-level cut (VR4)', () => {
   it('flush clause-cuts a long tail too', () => {
     const buffer = new SpokenSentenceBuffer()
     const chunks = [...buffer.push(LONG_SENTENCE.slice(0, -1)), ...buffer.flush()] // no terminator at all
-    expect(chunks).toHaveLength(2)
+    expect(chunks).toHaveLength(3)
     expect(chunks.join(' ')).toBe(LONG_SENTENCE.slice(0, -1))
   })
 

@@ -52,6 +52,8 @@ export class SpokenBrainTurn {
   #pendingChunks: string[] = []
   #spokenLine: SpokenLine | null = null
   #textEnded = false
+  #startedAt = 0
+  #firstTextAt: number | null = null
 
   constructor(deps: SpokenBrainTurnDeps) {
     this.#deps = deps
@@ -75,6 +77,7 @@ export class SpokenBrainTurn {
    *  be watching this DETACHED (a turn the watchdog released keeps running in
    *  the background, with nothing left holding its promise). */
   async run(utterance: string): Promise<SpokenTurnOutcome> {
+    this.#startedAt = Date.now()
     const watchdog = armTurnWatchdog(this.#deps.turnWatchdogMs)
     void watchdog.whenExpired.then(() => {
       this.#watchdogFired = true
@@ -98,6 +101,16 @@ export class SpokenBrainTurn {
         }
         if (this.#cancelled) continue
         if (event.kind === 'text') {
+          if (this.#firstTextAt === null) {
+            // The turn's latency ledger, half 1: how long the BRAIN took to say
+            // its first word (CLI spawn + auth + resume + the model's tool
+            // calls all land here). Half 2 is `firstSpeechRequestMs` below.
+            this.#firstTextAt = Date.now()
+            this.#deps.logger.info(
+              { firstTextMs: this.#firstTextAt - this.#startedAt },
+              'voice turn — first text from the brain',
+            )
+          }
           watchdog.touch()
           this.#speak(buffer.push(event.delta))
         } else if (event.kind === 'queued') {
@@ -202,6 +215,12 @@ export class SpokenBrainTurn {
 
   #requestSpeech(): void {
     if (this.#speech !== null) return
+    // Half 2 of the latency ledger: utterance → the first chunk handed to the
+    // speaker. What the user waits beyond this is synthesis + the device.
+    this.#deps.logger.info(
+      { firstSpeechRequestMs: Date.now() - this.#startedAt },
+      'voice turn — first chunk to the speaker',
+    )
     this.#deps.onSpeaking?.()
     this.#speech = this.#deps.openSpeech().then((line) => {
       this.#line = line

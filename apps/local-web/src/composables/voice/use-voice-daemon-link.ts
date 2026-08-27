@@ -121,6 +121,11 @@ export function useVoiceDaemonLink(options: {
    *  landed and the display dock is taking the conversation, so the room should
    *  be the thing the user is looking at. Only app surfaces are ever sent it. */
   onShowDisplay?: () => void;
+  /** The daemon says a spoken line is about to play SOMEWHERE and the dock
+   *  should be on screen for it. Only dock surfaces are ever sent it —
+   *  broadcast, since the audio itself is single-delivery and may land in a
+   *  different window than the one that must appear. */
+  onShowDock?: () => void;
   /** Whether this link should hold the channel right now. Default true — a
    *  view's link lives exactly as long as the view. The Display's voice lives
    *  in a window-lifetime store instead, and a window must never hold TWO
@@ -167,17 +172,22 @@ export function useVoiceDaemonLink(options: {
   // shows the assistant talking off it. `isDaemonSpeaking` is a different
   // speaker: the daemon's own, on the machine's speakers.
   const isPlayingRelayedLine = ref(false);
+  // The line in flight, so a surface with a caption row (the dock's mini row)
+  // can SHOW what is being said rather than an empty row beside a voice.
+  const relayedLineText = ref<string | null>(null);
 
   async function drainSpeakQueue(): Promise<void> {
     if (isPlayingRelayedLine.value) return;
     isPlayingRelayedLine.value = true;
     try {
       for (let text = speakQueue.shift(); text !== undefined; text = speakQueue.shift()) {
+        relayedLineText.value = text;
         // play() resolves on cancel/unreachable too — a bad line never wedges the queue.
         await player.play(text);
       }
     } finally {
       isPlayingRelayedLine.value = false;
+      relayedLineText.value = null;
     }
   }
 
@@ -217,6 +227,8 @@ export function useVoiceDaemonLink(options: {
       daemonState.value = toVoiceDaemonState(event.state);
     } else if (event.kind === "show-display") {
       options.onShowDisplay?.();
+    } else if (event.kind === "show-dock") {
+      options.onShowDock?.();
     } else if (event.kind === "speak" && event.text) {
       // An older relay omits the producer: unknown is never "ours".
       if (isOwnVoice(event.sessionId ?? null)) return;
@@ -286,6 +298,7 @@ export function useVoiceDaemonLink(options: {
     isAppDisplayActive,
     appDisplaySession,
     isPlayingRelayedLine,
+    relayedLineText,
     notifySessionStart,
     notifySessionEnd,
   };

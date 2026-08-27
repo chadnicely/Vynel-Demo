@@ -64,6 +64,10 @@ export interface DisplayDockPresence {
   /** The APP window's own voice session is live (its `display-session` frame),
    *  and the user has not dismissed the mirror of it. */
   readonly isAppSessionLive: boolean;
+  /** A spoken line is being heard right now (or was just announced) with no
+   *  session behind it — a proactive `speak`, the daemon's own reply. The
+   *  assistant's voice must have pixels somewhere while it talks. */
+  readonly isAssistantLineAudible: boolean;
   /** The desktop-control attention overlay is on screen, in the same corner. */
   readonly isDesktopOverlayVisible: boolean;
 }
@@ -123,6 +127,12 @@ function dockShape(presence: DisplayDockPresence): {
   if (presence.isAppSessionLive && !presence.isAppDisplayActive) {
     return { mode: "mini", isMirror: true };
   }
+  // A spoken line with no session anywhere to pin it to (a proactive `speak`,
+  // the daemon's native reply): the corner row appears for the line, mirror-
+  // shaped — a caption and an orb, no microphone of its own to offer.
+  if (presence.isAssistantLineAudible && !presence.isAppDisplayActive) {
+    return { mode: "mini", isMirror: true };
+  }
   return { mode: "hidden", isMirror: false };
 }
 
@@ -138,6 +148,10 @@ export interface DisplayDockModeInputs {
   /** There is a session in the app window worth mirroring (the daemon link's
    *  `display-session`, minus any dismissal the user made of it). */
   isAppSessionLive: MaybeRefOrGetter<boolean>;
+  /** A spoken line is audible (or just announced) with no session behind it —
+   *  the daemon's `show-dock` linger, a relayed line playing here, or the
+   *  daemon's own speaker running. */
+  isAssistantLineAudible: MaybeRefOrGetter<boolean>;
 }
 
 /** The dock's mode as it changes. Mounts the window's own `activity`
@@ -181,6 +195,7 @@ export function useDisplayDockMode(
       isAppDisplayActive: toValue(inputs.isAppDisplayActive),
       wasTakenOverByTheRoom: wasTakenOverByTheRoom.value,
       isAppSessionLive: toValue(inputs.isAppSessionLive),
+      isAssistantLineAudible: toValue(inputs.isAssistantLineAudible),
       isDesktopOverlayVisible: isDesktopOverlayVisible(desktopActivity.state, nowMs.value),
     }),
   );

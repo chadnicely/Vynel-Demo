@@ -26,6 +26,7 @@ function presence(overrides: Partial<DisplayDockPresence> = {}): DisplayDockPres
     isAppDisplayActive: false,
     wasTakenOverByTheRoom: false,
     isAppSessionLive: false,
+    isAssistantLineAudible: false,
     isDesktopOverlayVisible: false,
     ...overrides,
   };
@@ -137,6 +138,38 @@ describe("displayDockLayout", () => {
     expect(mini.isMirror).toBe(false);
   });
 
+  // The `show-dock` path: a proactive spoken line with no session anywhere
+  // still gets pixels — the mirror-shaped corner row, for the line's life.
+  it("shows the spoken-line row while the assistant is audible with no session", () => {
+    const state = displayDockLayout(presence({ isAssistantLineAudible: true }));
+    expect(state.mode).toBe("mini");
+    expect(state.isMirror).toBe(true);
+    expect(state.park).toBe("bottom-right");
+  });
+
+  // One orb: the room on screen draws the assistant, whatever is being said.
+  it("hides the spoken-line row while the app's Display has the room", () => {
+    expect(
+      displayDockLayout(
+        presence({ isAssistantLineAudible: true, isAppDisplayActive: true }),
+      ).mode,
+    ).toBe("hidden");
+  });
+
+  it("lets a conversation or a session mirror win over the spoken-line row", () => {
+    const own = displayDockLayout(
+      presence({ isConversationInHand: true, isAssistantLineAudible: true }),
+    );
+    expect(own.mode).toBe("wake");
+    expect(own.isMirror).toBe(false);
+
+    const mirror = displayDockLayout(
+      presence({ isAppSessionLive: true, isAssistantLineAudible: true }),
+    );
+    expect(mirror.mode).toBe("mini");
+    expect(mirror.isMirror).toBe(true);
+  });
+
   it("stacks a mirrored row above the desktop-control overlay too", () => {
     const state = displayDockLayout(
       presence({ isAppSessionLive: true, isDesktopOverlayVisible: true }),
@@ -164,6 +197,7 @@ async function mountDockMode(inputs: {
   isConversationInHand: ReturnType<typeof ref<boolean>>;
   isAppDisplayActive: ReturnType<typeof ref<boolean>>;
   isAppSessionLive?: ReturnType<typeof ref<boolean>>;
+  isAssistantLineAudible?: ReturnType<typeof ref<boolean>>;
 }) {
   setActivePinia(createPinia());
   let dock!: ComputedRef<DisplayDockLayoutState>;
@@ -174,6 +208,7 @@ async function mountDockMode(inputs: {
           isConversationInHand: () => inputs.isConversationInHand.value === true,
           isAppDisplayActive: () => inputs.isAppDisplayActive.value === true,
           isAppSessionLive: () => inputs.isAppSessionLive?.value === true,
+          isAssistantLineAudible: () => inputs.isAssistantLineAudible?.value === true,
         });
         return () => h("div");
       },

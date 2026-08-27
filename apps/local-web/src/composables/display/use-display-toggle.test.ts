@@ -137,6 +137,34 @@ describe("useDisplayToggle", () => {
     expect(toggle().isDisplayActive.value).toBe(false);
   });
 
+  // The route cannot see a minimized window: a room announced "on screen"
+  // while nobody can see it made the dock force-hide during spoken lines.
+  it("announces the room off screen while the window is hidden, without leaving it", async () => {
+    const { toggle, wrapper } = await mountToggle();
+    const setVisibility = (value: "visible" | "hidden") => {
+      Object.defineProperty(document, "visibilityState", { value, configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    try {
+      toggle().showDisplay();
+      await wrapper.vm.$nextTick();
+      expect(displayActiveCalls.at(-1)).toBe(true);
+
+      setVisibility("hidden");
+      await wrapper.vm.$nextTick();
+      expect(displayActiveCalls.at(-1)).toBe(false);
+      // The room itself never left the canvas — only the announcement changed.
+      expect(toggle().isDisplayActive.value).toBe(true);
+
+      setVisibility("visible");
+      await wrapper.vm.$nextTick();
+      expect(displayActiveCalls.at(-1)).toBe(true);
+    } finally {
+      // Remove the shadowing own property so later cases read the real getter.
+      delete (document as { visibilityState?: unknown }).visibilityState;
+    }
+  });
+
   it("with nothing remembered it hands the canvas back to the chat", async () => {
     const { toggle, ui } = await mountToggle();
     toggle().toggleDisplay();

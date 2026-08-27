@@ -617,4 +617,22 @@ describe('the wake window handover, as the wire tells it', () => {
     appTab.close()
     capableTab.close()
   })
+
+  it('sends show-dock to dock surfaces only — broadcast, unlike the single-delivery speak', async () => {
+    const { channel } = buildChannel({ wakeSurface: 'dock', turnWatchdogMs: TURN_WATCHDOG_MS })
+    activeChannel = channel
+    const port = await channel.whenListening
+
+    const dock = await subscribe(port, 'dock')
+    const appTab = await subscribe(port, 'app', '1')
+    await waitFor(() => dock.events.length >= 1 && appTab.events.length >= 1)
+
+    channel.publishShowDock()
+    await waitFor(() => dock.events.some((event) => event.kind === 'show-dock'))
+    await settle()
+    // The app window is not the surface that must appear for a spoken line.
+    expect(appTab.events.filter((event) => event.kind === 'show-dock')).toEqual([])
+    dock.close()
+    appTab.close()
+  })
 })

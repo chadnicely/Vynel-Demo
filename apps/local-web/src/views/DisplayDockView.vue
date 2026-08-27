@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onScopeDispose, ref, watch } from "vue";
 import { useVoiceSession } from "../composables/voice/use-voice-session.js";
 import { useVoiceDaemonLink } from "../composables/voice/use-voice-daemon-link.js";
 import { createOverlayWindowControls } from "../composables/voice/tauri-overlay-window.js";
@@ -52,9 +52,38 @@ const voice = useVoiceSession({ onEnded: handleSessionEnded, onStarted: handleSe
 const daemon = useVoiceDaemonLink({
   surface: "dock",
   onWake: handleWake,
+  onShowDock: handleShowDock,
   ownLiveSessionId: voice.currentSessionId,
   speakThroughSession: voice.speakExternal,
 });
+
+// A spoken line was announced (`show-dock`) — the corner row appears for it
+// and LINGERS a little past the announcement, because the audio may play in a
+// different window than this one and this window cannot hear when it ends.
+// A line played HERE holds the row for exactly as long as it sounds.
+const SHOW_DOCK_LINGER_MS = 8_000;
+const isSpokenLineLingering = ref(false);
+let spokenLineLingerTimer: ReturnType<typeof setTimeout> | null = null;
+function handleShowDock(): void {
+  isSpokenLineLingering.value = true;
+  if (spokenLineLingerTimer !== null) clearTimeout(spokenLineLingerTimer);
+  spokenLineLingerTimer = setTimeout(() => {
+    isSpokenLineLingering.value = false;
+    spokenLineLingerTimer = null;
+  }, SHOW_DOCK_LINGER_MS);
+}
+onScopeDispose(() => {
+  if (spokenLineLingerTimer !== null) clearTimeout(spokenLineLingerTimer);
+});
+
+// The assistant is audible right now: a relayed line playing in this window,
+// the daemon's own speaker running, or the announcement's linger window.
+const isAssistantLineAudible = computed(
+  () =>
+    isSpokenLineLingering.value ||
+    daemon.isPlayingRelayedLine.value ||
+    daemon.daemonState.value === "speaking",
+);
 
 // The dock HAS the conversation from the moment a wake lands until it gives it
 // back — not merely while the recognizer is open. A mute ends the session on
@@ -80,6 +109,7 @@ const dock = useDisplayDockMode({
   isConversationInHand,
   isAppDisplayActive: daemon.isAppDisplayActive,
   isAppSessionLive: () => isMirrorAvailable.value && !isMirrorDismissed.value,
+  isAssistantLineAudible,
 });
 const mode = computed(() => dock.value.mode);
 const isMirror = computed(() => dock.value.isMirror);
@@ -191,9 +221,15 @@ const statusLine = computed(() =>
 // status board — the fleet's own numbers live in the room. Mirrored, the
 // room's phase is ALL this window has: no session view, no player, no mic.
 const spikeKey = useSpokenClauseSpike();
+// A mirror row without a live app session is the SPOKEN-LINE row (the
+// `show-dock` path): there is no phase to mirror, and what is happening is
+// that the assistant is talking — so the orb says exactly that.
 const miniOrb = computed(() =>
   isMirror.value
-    ? mirroredOrbState(mirroredSession.value?.phase ?? "idle", activityEnergy("idle"))
+    ? mirroredOrbState(
+        mirroredSession.value?.live === true ? mirroredSession.value.phase : "speaking",
+        activityEnergy("idle"),
+      )
     : displayOrbState(voice.view.value, activityEnergy("idle"), isMuted.value, {
         state: daemon.daemonState.value,
         isPlayingRelayedLine: daemon.isPlayingRelayedLine.value,
@@ -205,16 +241,24 @@ const miniOrb = computed(() =>
 // open, since the session it reports lives in the app.
 const micLabel = computed(() => {
   if (isMirror.value) {
-    return mirroredSession.value?.phase === "muted" ? "Muted" : "Listening";
+    // The spoken-line row has no microphone ANYWHERE to report — claiming
+    // "Listening" beside a proactive line would promise an open mic.
+    if (mirroredSession.value?.live !== true) return "Speaking";
+    return mirroredSession.value.phase === "muted" ? "Muted" : "Listening";
   }
   if (isMuted.value) return "Muted";
   return voice.isActive.value ? "Listening" : "Resume";
 });
 
 // What the corner row says, and whether its pill reads as live — the mirror
-// answers off the room's frame, everything else off this window's session.
+// answers off the room's frame (or the relayed line playing in this window),
+// everything else off this window's session.
 const miniCaption = computed(() =>
-  isMirror.value ? (mirroredSession.value?.caption ?? "") : caption.value,
+  isMirror.value
+    ? mirroredSession.value?.live === true
+      ? mirroredSession.value.caption
+      : (daemon.relayedLineText.value ?? "")
+    : caption.value,
 );
 const isMiniListening = computed(() =>
   isMirror.value ? miniOrb.value.listening : isListening.value,

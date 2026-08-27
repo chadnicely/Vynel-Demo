@@ -58,6 +58,9 @@ export type OverlayEvent =
   | { readonly kind: 'speak'; readonly text: string; readonly sessionId: string | null }
   // Bring the desktop app forward on the Display. App surfaces only.
   | { readonly kind: 'show-display' }
+  // A spoken line is about to be heard — the dock should be on screen for it.
+  // Dock surfaces only, broadcast (whichever window plays it, the dock shows).
+  | { readonly kind: 'show-dock' }
 
 export type OverlaySurface = 'app' | 'dock'
 
@@ -112,6 +115,11 @@ export interface OverlayChannel {
   /** Ask the DESKTOP APP to come forward on the Display (a wake landed). App
    *  surfaces only — the dock is the wake window and already has the room. */
   publishShowDisplay(): void
+  /** Ask the DOCK to be on screen — a spoken line is about to play and a voice
+   *  with no pixels anywhere is a voice from nowhere. Dock surfaces only, and
+   *  broadcast, unlike the single-delivery `speak`: the dock must appear
+   *  whichever client ends up playing the audio. */
+  publishShowDock(): void
   stop(): void
 }
 
@@ -354,6 +362,9 @@ export function startOverlayChannel(
       // the app, and the dock — the only other surface — is the window the
       // conversation is landing in.
       broadcast({ kind: 'show-display' }, (subscriber) => subscriber.surface === 'app')
+    },
+    publishShowDock(): void {
+      broadcast({ kind: 'show-dock' }, (subscriber) => subscriber.surface === 'dock')
     },
     stop(): void {
       for (const stream of subscribers.keys()) void stream.close()

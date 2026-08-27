@@ -19,11 +19,18 @@
  *  the sentence to end — the first sound waits for a clause, not a paragraph. */
 export const CLAUSE_CUT_CHARS = 120
 
+/** The FIRST chunk of a turn cuts tighter: until something has been spoken,
+ *  every buffered character is silence the user sits through, so the opening
+ *  clause goes to the speaker at half the normal length. Later chunks keep
+ *  the natural rhythm — by then synthesis is pipelined ahead of playback. */
+export const FIRST_CHUNK_CLAUSE_CUT_CHARS = 60
+
 const SENTENCE_END = /^[\s\S]*?(?:[.!?]+["'”’)\]*_]*(?=\s)|\n)/
 const CLAUSE_BREAK = /(?:[,;:]["'”’)\]*_]*|\s[-–—]|[–—])(?=\s)/g
 
 export class SpokenSentenceBuffer {
   #buffer = ''
+  #emittedFirstChunk = false
 
   // Append a delta; return any complete chunks now ready to speak, in order.
   // The trailing partial stays buffered until its boundary arrives.
@@ -48,10 +55,19 @@ export class SpokenSentenceBuffer {
       const cutAt = this.#nextCut()
       if (cutAt === null) break
       const chunk = this.#buffer.slice(0, cutAt).trim()
-      if (chunk) chunks.push(chunk)
+      if (chunk) {
+        chunks.push(chunk)
+        this.#emittedFirstChunk = true
+      }
       this.#buffer = this.#buffer.slice(cutAt)
     }
     return chunks
+  }
+
+  // The limit depends only on chunks already emitted, so streamed and one-push
+  // input still cut identically (the token-by-token invariant).
+  #cutLimit(): number {
+    return this.#emittedFirstChunk ? CLAUSE_CUT_CHARS : FIRST_CHUNK_CLAUSE_CUT_CHARS
   }
 
   // The sentence end wins unless the sentence is already long; then the clause
@@ -59,18 +75,19 @@ export class SpokenSentenceBuffer {
   // first one after it), and a long sentence with no break at all waits for
   // its end like before.
   #nextCut(): number | null {
+    const limit = this.#cutLimit()
     const sentenceEnd = this.#buffer.match(SENTENCE_END)?.[0].length ?? null
-    if (sentenceEnd !== null && sentenceEnd <= CLAUSE_CUT_CHARS) return sentenceEnd
+    if (sentenceEnd !== null && sentenceEnd <= limit) return sentenceEnd
     const pendingLength = sentenceEnd ?? this.#buffer.length
-    if (pendingLength < CLAUSE_CUT_CHARS) return null
-    return this.#clauseCut(pendingLength) ?? sentenceEnd
+    if (pendingLength < limit) return null
+    return this.#clauseCut(pendingLength, limit) ?? sentenceEnd
   }
 
-  #clauseCut(before: number): number | null {
+  #clauseCut(before: number, limit: number): number | null {
     let lastWithin: number | null = null
     for (const match of this.#buffer.slice(0, before).matchAll(CLAUSE_BREAK)) {
       const end = match.index + match[0].length
-      if (end <= CLAUSE_CUT_CHARS) lastWithin = end
+      if (end <= limit) lastWithin = end
       else return lastWithin ?? end
     }
     return lastWithin

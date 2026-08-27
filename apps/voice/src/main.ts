@@ -74,18 +74,19 @@ async function main(): Promise<void> {
     logger.warn('no voice model installed yet — download one in Settings → Voice (the daemon waits)')
   }
 
-  // The native STT/TTS engines are SINGLE instances shared by the wake line
-  // and every call loop — serialize them so concurrent turns can't race the
-  // sherpa addon (each call gets its own VAD; those are per-stream state).
-  // Both lanes read the SLOT at call time, so a reload's swap (or its first
-  // fill) lands between calls. The speaker is injected HERE — the one place
-  // the pick is applied — unless a caller chose one deliberately.
+  // The native STT engine is a SINGLE instance shared by the wake line and
+  // every call loop — serialize it so concurrent turns can't race the sherpa
+  // addon (each call gets its own VAD; those are per-stream state). Synthesis
+  // needs no mutex HERE: `VoiceEngines` serializes its native half internally
+  // (the sherpa lane), and a provider relay is plain HTTP that may run
+  // concurrently. Both lanes read the SLOT at call time, so a reload's swap
+  // (or its first fill) lands between calls. The speaker is injected HERE —
+  // the one place the pick is applied — unless a caller chose one deliberately.
   const sharedTranscribe = serializeAsync((audio: PcmAudio) => slot.engines.recognizer.transcribe(audio))
-  const sharedSynthesize = serializeAsync((text: string, options?: SynthesizeOptions) =>
-    slot.engines.synthesizer.synthesize(text, { voiceId: slot.engines.selection.speakerId, ...options }),
-  )
+  const sharedSynthesize = (text: string, options?: SynthesizeOptions) =>
+    slot.engines.synthesizer.synthesize(text, { voiceId: slot.engines.selection.speakerId, ...options })
   const serializedRecognizer: SpeechRecognizer = { transcribe: sharedTranscribe }
-  const serializedSynthesizer: VoiceEngine = { synthesize: sharedSynthesize }
+  const sharedSynthesizer: VoiceEngine = { synthesize: sharedSynthesize }
   // IN-SESSION transcription (commands, call legs). When the session lane IS
   // the local recognizer it must ride the same serialized lane (one native
   // instance); the engine relay is plain HTTP and needs no mutex.
@@ -171,6 +172,11 @@ async function main(): Promise<void> {
       //     microphone leg, nowhere: logged, never thrown.
       // Accept + hand off → resolves immediately.
       onSpeak: (text, sessionId) => {
+        // Whoever ends up playing the line, the dock should be on screen for
+        // it — a proactive spoken line with no pixels anywhere is a voice from
+        // nowhere. Broadcast, because the audio below is single-delivery and
+        // may land in a window that is not the dock.
+        overlay.publishShowDock()
         const preview = text.slice(0, 80)
         const driver = nativeLeg?.driver ?? null
         if (driver?.isHandedOff) {
@@ -245,7 +251,7 @@ async function main(): Promise<void> {
       overlay,
       recognizer: serializedRecognizer,
       transcribeCommand: sharedSessionTranscribe,
-      synthesizer: serializedSynthesizer,
+      synthesizer: sharedSynthesizer,
       wakeHandoff: wakeHandoff.handoff,
     })
   }
