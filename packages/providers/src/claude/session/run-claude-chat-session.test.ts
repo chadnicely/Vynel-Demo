@@ -107,6 +107,40 @@ describe('runClaudeChatSession', () => {
     })
   })
 
+  // The ledger a spoken surface is diagnosed with: one line per turn saying
+  // whether the reply STREAMED (many small chunks) or landed as one blob (the
+  // fallback above) — "speaks only after the turn" is unexplainable without it.
+  it('logs the turn text-delivery shape once, from the deltas that actually streamed', async () => {
+    installFakeQuery([
+      fakeSystemInitStep(),
+      fakeMessageStartStep(),
+      fakeTextStreamStep('First '),
+      fakeTextStreamStep('and second.'),
+      fakeAssistantMessageStep({ text: 'First and second.' }),
+      fakeSuccessResultStep(),
+    ])
+    const infoLines: Array<{ payload: object; message?: string }> = []
+    const events = runClaudeChatSession({
+      input: {
+        ...BASE_INPUT,
+        logger: {
+          info: (payload, message) => infoLines.push({ payload, ...(message !== undefined ? { message } : {}) }),
+          warn: () => {},
+        },
+      },
+      activeSessionRegistry: new ActiveSessionRegistry(),
+      pendingApprovalRegistry: new PendingApprovalRegistry(),
+    })
+    await collect(events)
+    const shapes = infoLines.filter((line) => line.message === 'turn text-delivery shape')
+    expect(shapes).toHaveLength(1)
+    expect(shapes[0]!.payload).toMatchObject({
+      textChunkCount: 2,
+      textChars: 17,
+      largestChunkChars: 11,
+    })
+  })
+
   it('does not double text that DID stream — a second message that did not still replays', async () => {
     installFakeQuery([
       fakeSystemInitStep(),

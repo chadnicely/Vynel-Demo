@@ -98,6 +98,25 @@ export async function* runClaudeChatSession(
   // the mid-turn nudge hook reads it when a tool result lands.
   const liveContext: LiveContextHolder = { current: null }
 
+  // The turn's TEXT-DELIVERY SHAPE, logged once at the end: a spoken surface
+  // lives or dies on whether the reply STREAMED (many small chunks) or landed
+  // as one blob — the CLI's non-streaming retry fallback delivers the whole
+  // reply as a single text-chunk, and from the outside that is indistinguishable
+  // from a slow turn without this line.
+  const turnStartedAtMs = Date.now()
+  let firstTextChunkMs: number | null = null
+  let textChunkCount = 0
+  let textChars = 0
+  let largestChunkChars = 0
+  const recordTextShape = (event: { kind: string } & Record<string, unknown>): void => {
+    if (event.kind !== 'text-chunk' || event['parentToolUseId'] !== undefined) return
+    const delta = typeof event['textDelta'] === 'string' ? event['textDelta'] : ''
+    firstTextChunkMs ??= Date.now() - turnStartedAtMs
+    textChunkCount += 1
+    textChars += delta.length
+    if (delta.length > largestChunkChars) largestChunkChars = delta.length
+  }
+
   const sdkOptions = buildClaudeSdkOptions({
     workspacePath: input.workspacePath,
     permissionMode: input.permissionMode,
@@ -321,6 +340,7 @@ export async function* runClaudeChatSession(
       currentAssistantMessageId,
       streamedAssistantMessageIds,
     })) {
+      recordTextShape(normalizedEvent)
       yield normalizedEvent
     }
 
@@ -391,8 +411,19 @@ export async function* runClaudeChatSession(
             model: normalizedEvent.model ?? liveContext.current?.model ?? null,
           }
         }
+        recordTextShape(normalizedEvent)
         yield normalizedEvent
       }
+    }
+
+    // One line per turn — `textChunkCount: 1` with the whole reply in
+    // `largestChunkChars` is the non-streaming fallback's signature; a healthy
+    // stream shows many small chunks starting at a low `firstTextChunkMs`.
+    if (textChunkCount > 0) {
+      input.logger?.info(
+        { firstTextChunkMs, textChunkCount, textChars, largestChunkChars },
+        'turn text-delivery shape',
+      )
     }
 
     // Flush synthetic events the race left un-yielded. The outstanding
