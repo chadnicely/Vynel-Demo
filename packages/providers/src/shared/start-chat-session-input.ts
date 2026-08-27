@@ -83,6 +83,13 @@ export type StartChatSessionInput = {
    *  default thinking behavior, byte-for-byte. */
   disableThinking?: boolean
 
+  /** Opt IN to the signed-in claude.ai account's cloud connectors (Calendar,
+   *  Drive, …). Omit/false — the default, every shipped caller — keeps them
+   *  off: auto-fetched connectors bypass Vynel's curated tool catalog (never
+   *  carded, invisible to tool policy) and their schemas cost ~10k tokens per
+   *  request (measured 2026-08-28). A surface that wants them passes `true`. */
+  allowClaudeAiConnectors?: boolean
+
   /** Permission mode for this session — see `ClaudePermissionMode`. */
   permissionMode: ClaudePermissionMode
 

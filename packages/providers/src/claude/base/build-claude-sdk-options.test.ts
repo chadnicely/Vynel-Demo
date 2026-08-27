@@ -85,7 +85,7 @@ describe('buildClaudeSdkOptions', () => {
     // The safety machinery is untouched by the diet: the PreToolUse backstop
     // stays registered and the SDK auto-memory stays off.
     expect(bare.hooks?.PreToolUse).toHaveLength(1)
-    expect(bare.settings).toEqual({ autoMemoryEnabled: false })
+    expect(bare.settings).toEqual({ autoMemoryEnabled: false, disableClaudeAiConnectors: true })
 
     const full = buildClaudeSdkOptions({ ...base, permissionMode: 'auto' })
     expect(full.settingSources).toEqual(['user', 'project', 'local'])
@@ -196,9 +196,26 @@ describe('buildClaudeSdkOptions', () => {
     expect(options.tools).not.toContain('Workflow')
   })
 
-  it("turns the SDK's hidden auto-memory off", () => {
+  it("turns the SDK's hidden auto-memory off and keeps claude.ai connectors off by default", () => {
     const options = buildClaudeSdkOptions({ ...base, permissionMode: 'ask' })
-    expect(options.settings).toEqual({ autoMemoryEnabled: false })
+    expect(options.settings).toEqual({ autoMemoryEnabled: false, disableClaudeAiConnectors: true })
+  })
+
+  it('attaches the account connectors only on the explicit opt-in', () => {
+    const optedIn = buildClaudeSdkOptions({
+      ...base,
+      permissionMode: 'ask',
+      allowClaudeAiConnectors: true,
+    })
+    expect(optedIn.settings).toEqual({ autoMemoryEnabled: false })
+
+    // An explicit false is the default, not a third state.
+    const explicitOff = buildClaudeSdkOptions({
+      ...base,
+      permissionMode: 'ask',
+      allowClaudeAiConnectors: false,
+    })
+    expect(explicitOff.settings).toEqual({ autoMemoryEnabled: false, disableClaudeAiConnectors: true })
   })
 
   it('forwards agents to the SDK options when provided, omits them otherwise', () => {

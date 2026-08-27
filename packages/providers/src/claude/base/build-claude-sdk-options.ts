@@ -26,6 +26,13 @@ export type BuildClaudeSdkOptionsInput = {
    *  caller supplied one — effort guides thinking depth, which no longer
    *  exists, and some models reject effort without thinking. */
   disableThinking?: boolean
+  /** Opt IN to the signed-in claude.ai account's cloud connectors. Omit/false
+   *  (the default) sends `disableClaudeAiConnectors: true`: auto-fetched
+   *  connectors arrive outside Vynel's curated catalog — never carded, never
+   *  in the tool-policy matrix — and their schemas cost ~10k tokens per
+   *  request (measured 2026-08-28, Calendar+Drive). A surface that wants them
+   *  passes `true` and gets the SDK's shipped behavior, byte-for-byte. */
+  allowClaudeAiConnectors?: boolean
   /** The mode the turn STARTS in — what the SDK's own option is set to. */
   permissionMode: ClaudePermissionMode
   /** How the backstop hook reads the mode at call time, so a mid-turn switch
@@ -190,7 +197,12 @@ export function buildClaudeSdkOptions(input: BuildClaudeSdkOptionsInput): Option
     // `~/.claude/projects/<cwd>/memory/` that the user never sees, beside
     // `@vynel/memory` (found live 2026-08-26 — the global root's hidden cwd had
     // files). Flag-layer settings outrank the user's own settings.json.
-    settings: { autoMemoryEnabled: false },
+    // claude.ai connectors are opt-in per session (`allowClaudeAiConnectors`
+    // above) — by default they neither attach nor spend tokens.
+    settings: {
+      autoMemoryEnabled: false,
+      ...(input.allowClaudeAiConnectors === true ? {} : { disableClaudeAiConnectors: true }),
+    },
     // The can't-be-skipped safety backstop (always on, every session). A
     // PreToolUse hook fires for EVERY tool call — including a subagent in a
     // bypass permission mode that would skip `canUseTool` — and forces

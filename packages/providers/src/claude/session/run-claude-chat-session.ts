@@ -109,6 +109,9 @@ export async function* runClaudeChatSession(
     ...(input.resumeSessionId !== undefined ? { resumeSessionId: input.resumeSessionId } : {}),
     ...(input.hostResources !== undefined ? { hostResources: input.hostResources } : {}),
     ...(input.disableThinking !== undefined ? { disableThinking: input.disableThinking } : {}),
+    ...(input.allowClaudeAiConnectors !== undefined
+      ? { allowClaudeAiConnectors: input.allowClaudeAiConnectors }
+      : {}),
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.thinkingEffort !== undefined ? { thinkingEffort: input.thinkingEffort } : {}),
     ...(input.mcpServers !== undefined
