@@ -12,6 +12,14 @@ import type { VoiceTurnEvent } from "./voice-command-session-types.js";
 // surfaced as soon as the stream names it, so the session can interrupt BY
 // IDENTITY on a barge-in (never the global head). Pure over the event stream —
 // unit-tested with scripted events.
+//
+// A TEXT-BLOCK BOUNDARY is a sentence boundary. The buffer's own rule needs a
+// period FOLLOWED BY WHITESPACE, and a block that ends right before a tool
+// call ends on a bare period — on a tool-using turn ("I'll open YouTube."
+// → tool → "Music is playing.") nothing ever closed, every segment piled into
+// the buffer, and the whole reply spoke at once at the end, jammed together
+// ("…YouTube.Let me…" — Kafi's 2026-08-28 smoke). So a tool call starting, or
+// the next assistant message beginning, flushes what the model finished saying.
 
 // The brain-surface tool a producer calls to talk (mcp__vynel__<name>).
 export const SPEAK_TOOL_NAME = "mcp__vynel__speak";
@@ -29,8 +37,12 @@ export async function* adaptChatTurnStreamToVoice(
   events: AsyncIterable<ChatTurnEvent>,
 ): AsyncIterable<VoiceTurnEvent> {
   const sentences = new SpokenSentenceBuffer();
-  function* flushThenComplete(): Generator<VoiceTurnEvent> {
+  let currentMessageId: string | null = null;
+  function* flushSentences(): Generator<VoiceTurnEvent> {
     for (const text of sentences.flush()) yield { kind: "spoke", text };
+  }
+  function* flushThenComplete(): Generator<VoiceTurnEvent> {
+    yield* flushSentences();
     yield { kind: "completed" };
   }
 
@@ -45,9 +57,17 @@ export async function* adaptChatTurnStreamToVoice(
         yield { kind: "session", sessionId: event.message.sessionId };
         break;
       case "text-chunk":
+        // A new assistant message = the previous block is finished speech.
+        if (currentMessageId !== null && event.messageId !== currentMessageId) {
+          yield* flushSentences();
+        }
+        currentMessageId = event.messageId;
         for (const text of sentences.push(event.textDelta)) yield { kind: "spoke", text };
         break;
       case "tool-call-started": {
+        // The text before ANY tool call is complete — speak it while the tool
+        // runs, exactly the talk-first shape the voice prompt asks for.
+        yield* flushSentences();
         if (event.toolCall.toolName !== SPEAK_TOOL_NAME) break;
         const text = extractSpokenText(event.toolCall.toolInput);
         if (text !== null) yield { kind: "spoke", text };

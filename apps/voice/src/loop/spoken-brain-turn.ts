@@ -54,6 +54,9 @@ export class SpokenBrainTurn {
   #textEnded = false
   #startedAt = 0
   #firstTextAt: number | null = null
+  /** The assistant message the current text block belongs to — a change of it
+   *  is a block boundary and flushes the sentence buffer. */
+  #messageId: string | null = null
 
   constructor(deps: SpokenBrainTurnDeps) {
     this.#deps = deps
@@ -112,7 +115,21 @@ export class SpokenBrainTurn {
             )
           }
           watchdog.touch()
+          // A new assistant message = the previous block is finished speech —
+          // its bare-period ending never trips the buffer's own boundary.
+          if (
+            event.messageId !== undefined &&
+            this.#messageId !== null &&
+            event.messageId !== this.#messageId
+          ) {
+            this.#speak(buffer.flush())
+          }
+          this.#messageId = event.messageId ?? this.#messageId
           this.#speak(buffer.push(event.delta))
+        } else if (event.kind === 'text-break') {
+          // A tool call started: speak what the model finished saying while
+          // the tool runs, instead of piling it up until the turn ends.
+          this.#speak(buffer.flush())
         } else if (event.kind === 'queued') {
           // Nothing is spoken for a parked turn (VR3): the model's own first
           // sentence is the acknowledgment, when it comes.

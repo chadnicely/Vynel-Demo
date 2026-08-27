@@ -21,7 +21,14 @@ export type VoiceBrainEvent =
    *  as early as the server persists the user message; repeated on a context
    *  swap (the fresh segment). */
   | { readonly kind: 'session'; readonly sessionId: string }
-  | { readonly kind: 'text'; readonly delta: string }
+  /** `messageId` names the assistant message the delta belongs to — a CHANGE of
+   *  it is a text-block boundary (see `text-break`). Absent from an older api. */
+  | { readonly kind: 'text'; readonly delta: string; readonly messageId?: string }
+  /** A text block ENDED without trailing whitespace (a tool call started, or
+   *  the next assistant message began). The sentence buffer's own boundary
+   *  needs punctuation + whitespace, so without this a tool-using turn's
+   *  segments pile up and speak all at once at the end, jammed together. */
+  | { readonly kind: 'text-break' }
   /** The server parked this turn behind another on the same lock. Nothing is
    *  spoken about it (voice-realtime VR3) — the model's first sentence is the
    *  acknowledgment when it comes. */

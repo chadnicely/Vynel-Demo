@@ -91,6 +91,41 @@ describe("adaptChatTurnStreamToVoice", () => {
     expect(seen[1]).toBe("Second sentence.|after:ended");
   });
 
+  // Kafi's 2026-08-28 smoke: a tool-using turn ("I'll open YouTube." → tool →
+  // "Music is playing.") spoke NOTHING until the very end, then everything at
+  // once, jammed together ("…YouTube.Let me…") — a block ending on a bare
+  // period never trips the buffer's punctuation+whitespace boundary. A tool
+  // call starting, or the next assistant message, closes the block.
+  it("speaks each text block as its tool call starts — never piling blocks to the end", async () => {
+    const events = await collect([
+      textChunk("I'll play some music for you on YouTube."),
+      toolCallStarted("mcp__vynel-desktop__focus_window", { title: "Chrome" }),
+      { kind: "text-chunk", messageId: "msg-2", textDelta: "Now I'll open YouTube." },
+      toolCallStarted("mcp__vynel-desktop__open_url", { url: "https://youtube.com" }),
+      { kind: "text-chunk", messageId: "msg-3", textDelta: "Music is playing now." },
+      ended,
+    ]);
+    expect(events).toEqual([
+      { kind: "spoke", text: "I'll play some music for you on YouTube." },
+      { kind: "spoke", text: "Now I'll open YouTube." },
+      { kind: "spoke", text: "Music is playing now." },
+      { kind: "completed" },
+    ]);
+  });
+
+  it("a new assistant message flushes the previous block even with no tool between", async () => {
+    const events = await collect([
+      textChunk("First block ends here."),
+      { kind: "text-chunk", messageId: "msg-2", textDelta: "Second block." },
+      ended,
+    ]);
+    expect(events).toEqual([
+      { kind: "spoke", text: "First block ends here." },
+      { kind: "spoke", text: "Second block." },
+      { kind: "completed" },
+    ]);
+  });
+
   it("names the turn's session from user-message-persisted and session-created", async () => {
     const events = await collect([
       userPersisted("sess-voice-1"),

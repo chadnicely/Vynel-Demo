@@ -236,3 +236,44 @@ describe('SpokenBrainTurn', () => {
     await expect(settled).resolves.toBe('failed')
   })
 })
+
+// Kafi's 2026-08-28 smoke, the daemon leg's twin of the adapter fix: a text
+// block that ends on a bare period (a tool call follows, or the next assistant
+// message begins) never trips the sentence buffer's punctuation+whitespace
+// boundary — the whole turn piled up and spoke at once at the end.
+describe('SpokenBrainTurn — text-block boundaries', () => {
+  it('speaks a block when a tool call starts, instead of piling it to the end', async () => {
+    const { turn, run, spoken } = turnHarness()
+    const settled = turn.run('open some music')
+    await settle()
+    run.emit({ kind: 'text', delta: "I'll play some music for you on YouTube." })
+    await settle()
+    // Bare period, no trailing whitespace — the buffer alone would hold it.
+    expect(spoken).toEqual([])
+    run.emit({ kind: 'text-break' })
+    await settle()
+    expect(spoken).toEqual(["I'll play some music for you on YouTube."])
+    run.emit({ kind: 'text', delta: 'Music is playing now.' })
+    run.emit({ kind: 'completed' })
+    run.end()
+    await expect(settled).resolves.toBe('completed')
+    expect(spoken).toEqual([
+      "I'll play some music for you on YouTube.",
+      'Music is playing now.',
+    ])
+  })
+
+  it('a new assistant message flushes the previous block', async () => {
+    const { turn, run, spoken } = turnHarness()
+    const settled = turn.run('two blocks')
+    await settle()
+    run.emit({ kind: 'text', delta: 'First block ends here.', messageId: 'msg-1' })
+    await settle()
+    expect(spoken).toEqual([])
+    run.emit({ kind: 'text', delta: 'Second block.', messageId: 'msg-2' })
+    run.emit({ kind: 'completed' })
+    run.end()
+    await expect(settled).resolves.toBe('completed')
+    expect(spoken).toEqual(['First block ends here.', 'Second block.'])
+  })
+})

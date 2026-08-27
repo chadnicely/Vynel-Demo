@@ -21,10 +21,27 @@ function stubFetch(response: Response) {
 }
 
 describe('mapFrameToBrainEvent', () => {
-  it('maps a text-chunk to a text event', () => {
+  it('maps a text-chunk to a text event, carrying the message it belongs to', () => {
     expect(
       mapFrameToBrainEvent({ event: 'text-chunk', data: '{"kind":"text-chunk","textDelta":"hello"}' }),
     ).toEqual({ kind: 'text', delta: 'hello' })
+    // The messageId is the block-boundary signal: a change of it means the
+    // previous block ended (on a bare period the sentence buffer can't see).
+    expect(
+      mapFrameToBrainEvent({
+        event: 'text-chunk',
+        data: '{"kind":"text-chunk","messageId":"msg-2","textDelta":"next block"}',
+      }),
+    ).toEqual({ kind: 'text', delta: 'next block', messageId: 'msg-2' })
+  })
+
+  it('maps a tool call starting to a text-break — the block before it is finished speech', () => {
+    expect(
+      mapFrameToBrainEvent({
+        event: 'tool-call-started',
+        data: '{"kind":"tool-call-started","toolCall":{"toolName":"mcp__vynel-desktop__open_url"}}',
+      }),
+    ).toEqual({ kind: 'text-break' })
   })
 
   // CORRECTED expectation (was `{ kind: 'completed' }`): the transport terminal
@@ -109,12 +126,15 @@ describe('mapFrameToBrainEvent', () => {
     ).toEqual({ kind: 'queued' })
   })
 
-  it('ignores frames voice does not speak (thinking, tool calls)', () => {
+  // Corrected expectation (was: tool-call-started → null): a tool call is not
+  // SPOKEN, but it ends the text block before it — the text-break above. Only
+  // thinking (and tool completions) stay silent AND meaningless to the buffer.
+  it('ignores frames voice does not speak (thinking, tool completions)', () => {
     expect(
       mapFrameToBrainEvent({ event: 'thinking-chunk', data: '{"kind":"thinking-chunk"}' }),
     ).toBeNull()
     expect(
-      mapFrameToBrainEvent({ event: 'tool-call-started', data: '{"kind":"tool-call-started"}' }),
+      mapFrameToBrainEvent({ event: 'tool-call-completed', data: '{"kind":"tool-call-completed"}' }),
     ).toBeNull()
   })
 

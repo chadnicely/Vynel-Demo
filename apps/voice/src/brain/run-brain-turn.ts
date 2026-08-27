@@ -33,8 +33,14 @@ export function mapFrameToBrainEvent(frame: SseFrame): VoiceBrainEvent | null {
   const event = payload as Record<string, unknown>
 
   if (event.kind === 'text-chunk' && typeof event.textDelta === 'string') {
-    return { kind: 'text', delta: event.textDelta }
+    return typeof event.messageId === 'string'
+      ? { kind: 'text', delta: event.textDelta, messageId: event.messageId }
+      : { kind: 'text', delta: event.textDelta }
   }
+  // ANY tool call ends the text block before it — the sentence is finished
+  // even without trailing whitespace, and it should be HEARD while the tool
+  // runs (the talk-first shape), not piled up until the turn ends.
+  if (event.kind === 'tool-call-started') return { kind: 'text-break' }
   // The session id, from the two frames that name it earliest: a new/swapped
   // segment and the persisted user message (fires on new AND resumed turns).
   if (event.kind === 'session-created') {
