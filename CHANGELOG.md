@@ -5,7 +5,7 @@ All notable changes to Vynel are recorded here. The format loosely follows
 module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. Entries begin from the
 `@vynel/session` keystone (2026-07-04).
 
-## [Unreleased]
+## [0.3.9] — 2026-08-27
 
 ### Changed
 
