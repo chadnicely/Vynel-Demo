@@ -1,32 +1,42 @@
-import type { OfflineTtsConfig } from './native.js'
-import type { TtsModelConfig } from '../voice-engine.js'
+import type { OfflineTtsConfig } from "./native.js";
+import type { TtsModelConfig } from "../voice-engine.js";
 
 // Map Vynel's model-agnostic `TtsModelConfig` onto sherpa-onnx's `OfflineTtsConfig`.
 // Pure + exhaustive so the mapping is unit-tested without loading a native model
 // (the model files can't ride the gate). The CPU provider is fixed — Vynel voice
 // is a local, GPU-free experience by design.
 
-const DEFAULT_NUM_THREADS = 2
-const CPU_PROVIDER = 'cpu'
+// 4, up from 2 (voice-latency Phase 1, Kafi 2026-08-27): the first sentence's
+// synthesis sits on the reply's critical path — the room is silent until it
+// lands — and Kokoro on 2 threads was the third-largest slice of that wait.
+// Doubling the threads roughly halves it on any modern 8+-core machine, and
+// synthesis is BURSTY (one sentence at a time, prefetch depth 1), so this is
+// not a sustained load on the box.
+const DEFAULT_NUM_THREADS = 4;
+const CPU_PROVIDER = "cpu";
 
 export interface BuildOfflineTtsConfigInput {
-  readonly tts: TtsModelConfig
-  /** Inference threads. Default 2 — realtime on CPU without hogging the machine. */
-  readonly numThreads?: number
+  readonly tts: TtsModelConfig;
+  /** Inference threads. Default 4 — first-sentence latency over politeness. */
+  readonly numThreads?: number;
   /** Split cap for long text. Undefined = the model default. */
-  readonly maxNumSentences?: number
+  readonly maxNumSentences?: number;
 }
 
-export function buildOfflineTtsConfig(input: BuildOfflineTtsConfigInput): OfflineTtsConfig {
+export function buildOfflineTtsConfig(
+  input: BuildOfflineTtsConfigInput,
+): OfflineTtsConfig {
   const base = {
     numThreads: input.numThreads ?? DEFAULT_NUM_THREADS,
     provider: CPU_PROVIDER,
-    ...(input.maxNumSentences !== undefined ? { maxNumSentences: input.maxNumSentences } : {}),
-  }
+    ...(input.maxNumSentences !== undefined
+      ? { maxNumSentences: input.maxNumSentences }
+      : {}),
+  };
 
-  const tts = input.tts
+  const tts = input.tts;
   switch (tts.kind) {
-    case 'kokoro':
+    case "kokoro":
       return {
         ...base,
         model: {
@@ -35,11 +45,13 @@ export function buildOfflineTtsConfig(input: BuildOfflineTtsConfigInput): Offlin
             voices: tts.voices,
             tokens: tts.tokens,
             dataDir: tts.dataDir,
-            ...(tts.lengthScale !== undefined ? { lengthScale: tts.lengthScale } : {}),
+            ...(tts.lengthScale !== undefined
+              ? { lengthScale: tts.lengthScale }
+              : {}),
           },
         },
-      }
-    case 'vits':
+      };
+    case "vits":
       return {
         ...base,
         model: {
@@ -47,12 +59,14 @@ export function buildOfflineTtsConfig(input: BuildOfflineTtsConfigInput): Offlin
             model: tts.model,
             tokens: tts.tokens,
             dataDir: tts.dataDir,
-            ...(tts.lengthScale !== undefined ? { lengthScale: tts.lengthScale } : {}),
+            ...(tts.lengthScale !== undefined
+              ? { lengthScale: tts.lengthScale }
+              : {}),
           },
         },
-      }
+      };
     default:
-      return assertUnreachableModel(tts)
+      return assertUnreachableModel(tts);
   }
 }
 
@@ -61,5 +75,5 @@ export function buildOfflineTtsConfig(input: BuildOfflineTtsConfigInput): Offlin
 // internal invariant breach at engine construction, not user input — a bare
 // Error (→ 500 via the api's onError) is the honest classification.
 function assertUnreachableModel(model: never): never {
-  throw new Error(`Unsupported TTS model kind: ${JSON.stringify(model)}`)
+  throw new Error(`Unsupported TTS model kind: ${JSON.stringify(model)}`);
 }

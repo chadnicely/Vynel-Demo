@@ -5,6 +5,7 @@
 // `pushFrame`; everything testable lives here.
 
 import { SpeechSegmenter } from "@vynel/voice";
+import { voiceLatencyTracer } from "./voice-latency-trace.js";
 
 // Matches the segmenter's quiet-room default — the endpoint countdown resets
 // while the user is audibly SPEAKING, not only when a transcript lands, so a
@@ -29,7 +30,9 @@ export interface UtteranceCapture {
   readonly done: Promise<string | null>;
 }
 
-export function startUtteranceCapture(deps: UtteranceCaptureDeps): UtteranceCapture {
+export function startUtteranceCapture(
+  deps: UtteranceCaptureDeps,
+): UtteranceCapture {
   const segmenter = new SpeechSegmenter({ sampleRate: deps.sampleRate });
   let committed = "";
   let settled = false;
@@ -54,9 +57,18 @@ export function startUtteranceCapture(deps: UtteranceCaptureDeps): UtteranceCapt
     if (settled) return;
     if (endpointTimer !== null) clearTimeout(endpointTimer);
     endpointTimer = setTimeout(() => {
+      // The stopwatch starts at the DECISION, not the settle — the pending
+      // provider round-trip below is itself part of what gets measured. Pure
+      // silence (armed-from-start, nothing committed) is not an utterance and
+      // starts no stopwatch.
+      if (committed.trim() !== "") {
+        voiceLatencyTracer.markSpeechEnd(deps.endpointSilenceMs);
+      }
       // A provider round-trip may still be carrying the command — the silence
       // decides WHEN the capture ends, the chain decides WHAT it heard.
-      void transcriptionChain.then(() => settle({ text: committed.trim() || null }));
+      void transcriptionChain.then(() =>
+        settle({ text: committed.trim() || null }),
+      );
     }, deps.endpointSilenceMs);
   };
   // Armed from the first moment: a capture that never hears speech at all
@@ -71,13 +83,17 @@ export function startUtteranceCapture(deps: UtteranceCaptureDeps): UtteranceCapt
         transcriptionChain = transcriptionChain.then(async () => {
           if (settled) return;
           try {
-            const text = (await deps.transcribe(utterance, deps.sampleRate)).trim();
+            const text = (
+              await deps.transcribe(utterance, deps.sampleRate)
+            ).trim();
             if (settled || text === "") return;
             committed = `${committed} ${text}`.trim();
             deps.onInterim(committed);
             restartEndpoint();
           } catch (error) {
-            settle({ error: error instanceof Error ? error : new Error(String(error)) });
+            settle({
+              error: error instanceof Error ? error : new Error(String(error)),
+            });
           }
         });
       }
@@ -91,6 +107,7 @@ export function startUtteranceCapture(deps: UtteranceCaptureDeps): UtteranceCapt
 
 function looksLikeSpeech(frame: Float32Array): boolean {
   let energy = 0;
-  for (let index = 0; index < frame.length; index += 1) energy += frame[index]! * frame[index]!;
+  for (let index = 0; index < frame.length; index += 1)
+    energy += frame[index]! * frame[index]!;
   return Math.sqrt(energy / Math.max(1, frame.length)) > SPEECH_RMS_THRESHOLD;
 }

@@ -17,6 +17,8 @@
 // lib.dom ships no SpeechRecognition types, so the minimal surface we use is
 // declared locally — no runtime dependency, no @types package.
 
+import { voiceLatencyTracer } from "./voice-latency-trace.js";
+
 interface WebSpeechAlternative {
   readonly transcript: string;
 }
@@ -61,7 +63,11 @@ function resolveRecognitionConstructor(): WebSpeechRecognitionConstructor | null
     SpeechRecognition?: WebSpeechRecognitionConstructor;
     webkitSpeechRecognition?: WebSpeechRecognitionConstructor;
   };
-  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+  return (
+    speechWindow.SpeechRecognition ??
+    speechWindow.webkitSpeechRecognition ??
+    null
+  );
 }
 
 /** False in browsers without Web Speech (e.g. Firefox) — the overlay explains
@@ -83,10 +89,13 @@ export interface CommandRecognizer {
 }
 
 // How long a pause counts as "done speaking" before the transcript is finalized.
-// The balance point (live-tuned with Chad): long enough that a think-and-continue
-// pause doesn't cut the command, short enough that every exchange doesn't drag —
-// 5000 felt broken, anything under 3000 clipped mid-thought speech.
-const DEFAULT_ENDPOINT_SILENCE_MS = 3000;
+// HISTORY, because this number keeps moving on purpose: the first live tuning
+// with Chad landed on 3000 (5000 felt broken; under 3000 clipped mid-thought
+// speech). The voice-latency Phase 1 pass (Kafi, 2026-08-27) halved it to 1500
+// as the single biggest fixed cost in the speak→reply gap — every exchange sat
+// through the full window as dead air. If 1500 starts clipping his pauses
+// again, the trade is his to re-make, with the latency traces as the evidence.
+const DEFAULT_ENDPOINT_SILENCE_MS = 1500;
 
 export function createCommandRecognizer(
   lang = "en-US",
@@ -129,6 +138,9 @@ export function createCommandRecognizer(
           endpointTimer = setTimeout(() => {
             endpointTimer = null;
             finalizing = true;
+            // The stopwatch starts HERE — the moment we decided he was done,
+            // not when the recognizer finishes shutting down.
+            voiceLatencyTracer.markSpeechEnd(endpointSilenceMs);
             try {
               recognition?.stop();
             } catch {
@@ -166,7 +178,10 @@ export function createCommandRecognizer(
             restartEndpoint();
           };
           rec.onerror = (event) => {
-            if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+            if (
+              event.error === "not-allowed" ||
+              event.error === "service-not-allowed"
+            ) {
               permissionError = new Error(
                 "Microphone access was denied — allow the mic for this site to use voice.",
               );

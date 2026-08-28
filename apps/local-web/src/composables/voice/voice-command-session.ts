@@ -1,5 +1,10 @@
-import { SpokenEchoFilter, stripSpokenMarkup, type SpokenLine } from "@vynel/voice";
+import {
+  SpokenEchoFilter,
+  stripSpokenMarkup,
+  type SpokenLine,
+} from "@vynel/voice";
 import { DEFAULT_VOICE_TURN_WATCHDOG_MS } from "@vynel/contracts/voice/turn-watchdog";
+import { voiceLatencyTracer } from "./voice-latency-trace.js";
 import { createTurnWatchdog, type TurnWatchdog } from "./turn-watchdog.js";
 import type {
   VoiceCommandSession,
@@ -55,12 +60,14 @@ const FAILED_TURN_LINE = "Sorry, I ran into a problem with that.";
 // Spoken once when a turn has produced nothing for the whole watchdog window
 // (round-2 R2-G): a person at a microphone needs to hear the turn is alive.
 // The turn keeps streaming and its answer is spoken when it lands.
-const STILL_WORKING_LINE = "Still working on it — I'll say the answer when it lands.";
+const STILL_WORKING_LINE =
+  "Still working on it — I'll say the answer when it lands.";
 // A turn that COMPLETED having said nothing still owes the room an answer
 // (round-2 R2-O, the daemon leg's twin in voice-session-driver.ts): at a
 // microphone, silence is indistinguishable from a session that died. An
 // interrupted turn is the user's own barge-in — they are already talking.
-const NOTHING_SAID_LINE = "That's done — I didn't have anything to say about it.";
+const NOTHING_SAID_LINE =
+  "That's done — I didn't have anything to say about it.";
 // A silent capture normally burns a few seconds before the recognizer gives
 // up — but a fast-failing one (offline Chrome errors instantly) would spin
 // new recognitions back-to-back for the whole idle window without this floor.
@@ -80,7 +87,8 @@ export function startVoiceCommandSession(
   options: VoiceCommandSessionOptions = {},
 ): VoiceCommandSession {
   const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
-  const turnWatchdogMs = options.turnWatchdogMs ?? DEFAULT_VOICE_TURN_WATCHDOG_MS;
+  const turnWatchdogMs =
+    options.turnWatchdogMs ?? DEFAULT_VOICE_TURN_WATCHDOG_MS;
   const echoFilter = new SpokenEchoFilter();
   let ended = false;
   let turn: RunningTurn | null = null;
@@ -91,7 +99,12 @@ export function startVoiceCommandSession(
     if (ended) return;
     const run = turn;
     if (run === null || run.isCut) {
-      deps.onView({ state: "listening", transcript: interim, spokenText: "", notice: "" });
+      deps.onView({
+        state: "listening",
+        transcript: interim,
+        spokenText: "",
+        notice: "",
+      });
     } else if (run.spokenText === "") {
       const { command: transcript, notice } = run;
       deps.onView({ state: "thinking", transcript, spokenText: "", notice });
@@ -116,7 +129,8 @@ export function startVoiceCommandSession(
     run.watchdog.disarm();
     deps.cancelSpoken();
     run.abort.abort();
-    if (run.sessionId !== null) void deps.interruptTurn(run.sessionId).catch(() => undefined);
+    if (run.sessionId !== null)
+      void deps.interruptTurn(run.sessionId).catch(() => undefined);
   }
 
   function onInterim(transcript: string): void {
@@ -178,14 +192,18 @@ export function startVoiceCommandSession(
     publish();
     run.watchdog.arm();
     try {
-      for await (const event of deps.runBrainTurn(run.command, run.abort.signal)) {
+      for await (const event of deps.runBrainTurn(
+        run.command,
+        run.abort.signal,
+      )) {
         if (ended || run.isCut) break;
         if (event.kind === "session") {
           run.sessionId = event.sessionId;
         } else if (event.kind === "spoke") {
           const sentence = stripSpokenMarkup(event.text);
           if (sentence === "") continue;
-          run.spokenText = run.spokenText === "" ? sentence : `${run.spokenText} ${sentence}`;
+          run.spokenText =
+            run.spokenText === "" ? sentence : `${run.spokenText} ${sentence}`;
           publish();
           speakSentence(run, sentence);
         } else {
@@ -193,7 +211,8 @@ export function startVoiceCommandSession(
           // ended, so a completed turn with no reply text is a genuine silent
           // success — never a barge-in that swallowed the answer.
           if (event.kind === "failed") sayFailure(run);
-          else if (event.kind === "completed" && run.spokenText === "") sayNothingWasSaid(run);
+          else if (event.kind === "completed" && run.spokenText === "")
+            sayNothingWasSaid(run);
           break;
         }
       }
@@ -211,11 +230,15 @@ export function startVoiceCommandSession(
       // the reply stays an echo candidate for the return window past it. A
       // line can still join while the last one plays (an external line handed
       // over mid-settle), so wait until nothing new was queued.
-      for (let settled = 0; settled < run.playbacks.length; ) {
+      for (let settled = 0; settled < run.playbacks.length;) {
         settled = run.playbacks.length;
         await Promise.all(run.playbacks);
       }
       run.echoLine?.end();
+      // A turn that never sounded still owes its numbers (a silent success, a
+      // cut, a dead daemon). An audible turn already posted at first sound —
+      // this is a no-op then.
+      voiceLatencyTracer.flush("turn-settled");
       if (turn === run) turn = null;
       idleDeadline = Date.now() + idleTimeoutMs;
       publish();
@@ -223,6 +246,8 @@ export function startVoiceCommandSession(
   }
 
   function startTurn(command: string): void {
+    // The turn is leaving for the engine — the trace's second mark.
+    voiceLatencyTracer.markDispatch();
     const run: RunningTurn = {
       command,
       sessionId: null,
@@ -231,7 +256,10 @@ export function startVoiceCommandSession(
       echoLine: null,
       isCut: false,
       playbacks: [],
-      watchdog: createTurnWatchdog({ ms: turnWatchdogMs, onFire: () => sayStillWorking(run) }),
+      watchdog: createTurnWatchdog({
+        ms: turnWatchdogMs,
+        onFire: () => sayStillWorking(run),
+      }),
       abort: new AbortController(),
       settled: Promise.resolve(),
     };
@@ -262,6 +290,10 @@ export function startVoiceCommandSession(
           startTurn(heard);
           continue;
         }
+        // The capture ended without a turn (silence, an echo of our own
+        // reply, a stray fragment): whatever stopwatch the recognizer opened
+        // measures nothing — close it so the next real utterance starts clean.
+        voiceLatencyTracer.flush("no-turn");
         if (turn === null && Date.now() >= idleDeadline) return;
         const captureLastedMs = Date.now() - captureStartedAt;
         if (captureLastedMs < MIN_SILENT_CAPTURE_MS) {
@@ -276,7 +308,12 @@ export function startVoiceCommandSession(
       if (run !== null) cutTurn(run);
       deps.cancelSpoken();
       await run?.settled;
-      deps.onView({ state: "ended", transcript: "", spokenText: "", notice: "" });
+      deps.onView({
+        state: "ended",
+        transcript: "",
+        spokenText: "",
+        notice: "",
+      });
     }
   }
 

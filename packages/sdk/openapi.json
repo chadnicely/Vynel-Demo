@@ -42007,6 +42007,108 @@
         }
       }
     },
+    "/voice/latency-trace": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "{ logged: true } — the trace landed in the engine log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "logged": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "logged"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postVoiceLatency-trace",
+        "tags": [
+          "voice"
+        ],
+        "parameters": [],
+        "summary": "One spoken exchange's latency marks (speech end -> first sound), logged server-side for tuning.",
+        "x-sdk-name": "voice.reportLatencyTrace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "startedAt": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "marks": {
+                    "type": "object",
+                    "properties": {
+                      "speechEnd": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "dispatch": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "firstToken": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "firstTts": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "firstAudible": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    }
+                  },
+                  "speechEndToDispatchMs": {
+                    "type": "number"
+                  },
+                  "dispatchToFirstTokenMs": {
+                    "type": "number"
+                  },
+                  "firstTokenToFirstTtsMs": {
+                    "type": "number"
+                  },
+                  "firstTtsToFirstAudibleMs": {
+                    "type": "number"
+                  },
+                  "speechEndToFirstAudibleMs": {
+                    "type": "number"
+                  },
+                  "complete": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "endpointSilenceMs": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "startedAt",
+                  "marks",
+                  "complete"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/voice/calls": {
       "post": {
         "responses": {

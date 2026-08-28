@@ -15,7 +15,10 @@ import { encodeWavFromPcm } from "@vynel/voice-engine/pcm-codec";
 import { startUtteranceCapture } from "./utterance-capture.js";
 import type { CommandRecognizer } from "./speech-recognition.js";
 
-const DEFAULT_ENDPOINT_SILENCE_MS = 3000;
+// Halved with the Web Speech recognizer's window (voice-latency Phase 1) —
+// one number in spirit, two constants because the two recognizers share no
+// module. The history lives on the other one.
+const DEFAULT_ENDPOINT_SILENCE_MS = 1500;
 const TRANSCRIBE_TIMEOUT_MS = 30_000;
 // The mic worklet: post every 128-sample render quantum to the main thread.
 const CAPTURE_WORKLET = `
@@ -29,7 +32,10 @@ class VynelCaptureProcessor extends AudioWorkletProcessor {
 registerProcessor("vynel-capture", VynelCaptureProcessor);
 `;
 
-async function transcribeUtterance(samples: Float32Array, sampleRate: number): Promise<string> {
+async function transcribeUtterance(
+  samples: Float32Array,
+  sampleRate: number,
+): Promise<string> {
   const response = await fetch("/api/voice/transcribe", {
     method: "POST",
     headers: { "content-type": "audio/wav" },
@@ -89,7 +95,11 @@ export function createCloudCommandRecognizer(
           let acquired: MediaStream;
           try {
             acquired = await navigator.mediaDevices.getUserMedia({
-              audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+              audio: {
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+              },
             });
           } catch {
             if (!ended) {
@@ -131,11 +141,15 @@ export function createCloudCommandRecognizer(
               })
               .catch((error: unknown) => {
                 teardown();
-                reject(error instanceof Error ? error : new Error(String(error)));
+                reject(
+                  error instanceof Error ? error : new Error(String(error)),
+                );
               });
 
             const workletNode = new AudioWorkletNode(context, "vynel-capture");
-            workletNode.port.onmessage = (event: MessageEvent<Float32Array>) => {
+            workletNode.port.onmessage = (
+              event: MessageEvent<Float32Array>,
+            ) => {
               running.pushFrame(event.data);
             };
             context.createMediaStreamSource(stream).connect(workletNode);

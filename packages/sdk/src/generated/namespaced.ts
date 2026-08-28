@@ -2260,6 +2260,13 @@ export function makeNamespaced(client: Client<paths>) {
     if (error || data === undefined) throw new SdkError(response, error ?? data)
     return data
   },
+  reportLatencyTrace: async (input: NonNullable<paths["/voice/latency-trace"]["post"]['requestBody']>['content']['application/json']) => {
+    const { data, error, response } = await client["POST"]("/voice/latency-trace", {
+      body: input,
+    })
+    if (error || data === undefined) throw new SdkError(response, error ?? data)
+    return data
+  },
   setDisplayActive: async (input: NonNullable<paths["/voice/display-active"]["post"]['requestBody']>['content']['application/json']) => {
     const { data, error, response } = await client["POST"]("/voice/display-active", {
       body: input,

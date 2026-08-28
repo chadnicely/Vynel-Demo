@@ -1,4 +1,5 @@
 import { SpokenSentenceBuffer } from "@vynel/voice";
+import { voiceLatencyTracer } from "./voice-latency-trace.js";
 
 // Play spoken replies IN THE BROWSER — the reliable audio path. The daemon's own
 // speaker can't play while the overlay window holds the audio device (Windows
@@ -65,7 +66,9 @@ interface QueuedSentence<Wav> {
  *  `enqueue()`: it prefetches sentence N+1 while N plays, across call
  *  boundaries, and a `cancel()` mid-await never wedges it (the next enqueue
  *  finds the same loop still running). */
-export function createSentencePipeline<Wav>(io: SentencePipelineIo<Wav>): SentencePipeline {
+export function createSentencePipeline<Wav>(
+  io: SentencePipelineIo<Wav>,
+): SentencePipeline {
   let queue: QueuedSentence<Wav>[] = [];
   let generation = 0;
   let abort = new AbortController();
@@ -117,7 +120,12 @@ export function createSentencePipeline<Wav>(io: SentencePipelineIo<Wav>): Senten
       const settled = sentences.map(
         (text) =>
           new Promise<void>((resolve) => {
-            const item: QueuedSentence<Wav> = { text, generation, wav: null, settle: resolve };
+            const item: QueuedSentence<Wav> = {
+              text,
+              generation,
+              wav: null,
+              settle: resolve,
+            };
             queue.push(item);
             // Lookahead of ONE: a sentence that lands right behind the playing
             // one starts synthesizing now (the drain loop is parked in that
@@ -184,7 +192,10 @@ export function createSpokenAudioPlayer(
   // deaf-daemon class: done never settles, /session/end never posts).
   let resolvePlaying: (() => void) | null = null;
 
-  async function fetchWav(text: string, signal: AbortSignal): Promise<Blob | null> {
+  async function fetchWav(
+    text: string,
+    signal: AbortSignal,
+  ): Promise<Blob | null> {
     try {
       const response = await fetch("/voice/synthesize", {
         method: "POST",
@@ -198,7 +209,11 @@ export function createSpokenAudioPlayer(
         return null;
       }
       if (!response.ok) return null; // daemon down / synth failed — stay silent, don't throw
-      return await response.blob();
+      const wav = await response.blob();
+      // The first synthesized WAV of the exchange — mark it the moment the
+      // bytes are all here, not when it gets its turn at the speaker.
+      voiceLatencyTracer.markFirstTts();
+      return wav;
     } catch {
       return null; // aborted or unreachable — the caption already showed the words
     }
@@ -211,6 +226,9 @@ export function createSpokenAudioPlayer(
         resolvePlaying = resolve;
         const audio = new Audio(url);
         playing = audio;
+        // 'playing' is the first moment sound is actually leaving the
+        // machine — the trace's last mark, and the one the user feels.
+        audio.onplaying = () => voiceLatencyTracer.markFirstAudible();
         audio.onended = () => resolve();
         audio.onerror = () => resolve(); // an unplayable blob must not hang the turn
         audio.play().catch((error: unknown) => {

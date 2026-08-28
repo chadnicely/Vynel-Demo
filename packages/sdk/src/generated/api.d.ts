@@ -4211,6 +4211,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voice/latency-trace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** One spoken exchange's latency marks (speech end -> first sound), logged server-side for tuning. */
+        post: operations["postVoiceLatency-trace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/voice/calls": {
         parameters: {
             query?: never;
@@ -20418,6 +20435,49 @@ export interface operations {
                 content: {
                     "application/json": {
                         published: boolean;
+                    };
+                };
+            };
+        };
+    };
+    "postVoiceLatency-trace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    startedAt: string;
+                    marks: {
+                        speechEnd?: number;
+                        dispatch?: number;
+                        firstToken?: number;
+                        firstTts?: number;
+                        firstAudible?: number;
+                    };
+                    speechEndToDispatchMs?: number;
+                    dispatchToFirstTokenMs?: number;
+                    firstTokenToFirstTtsMs?: number;
+                    firstTtsToFirstAudibleMs?: number;
+                    speechEndToFirstAudibleMs?: number;
+                    complete: boolean;
+                    reason?: string;
+                    endpointSilenceMs?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description { logged: true } — the trace landed in the engine log. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        logged: boolean;
                     };
                 };
             };

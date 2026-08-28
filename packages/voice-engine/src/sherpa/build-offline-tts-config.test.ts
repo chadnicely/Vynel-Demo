@@ -14,7 +14,7 @@ describe('buildOfflineTtsConfig', () => {
     })
 
     expect(config).toEqual({
-      numThreads: 2,
+      numThreads: 4,
       provider: 'cpu',
       model: {
         kokoro: {

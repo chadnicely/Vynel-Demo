@@ -8,6 +8,7 @@ import {
 } from "@vynel/contracts/chat/voice-tier";
 import { useVynel } from "../use-vynel.js";
 import { streamChatTurnEvents } from "../chat/chat-turn-stream.js";
+import type { ChatTurnEvent } from "@vynel/contracts/chat/chat-http";
 import {
   createCommandRecognizer,
   isWebSpeechAvailable,
@@ -16,6 +17,7 @@ import { createCloudCommandRecognizer } from "./cloud-command-recognizer.js";
 import { useUserPreferences } from "../users/use-user-preferences.js";
 import { createSpokenAudioPlayer } from "./spoken-audio-player.js";
 import { adaptChatTurnStreamToVoice } from "./voice-turn-adapter.js";
+import { voiceLatencyTracer } from "./voice-latency-trace.js";
 import { startVoiceCommandSession } from "./voice-command-session.js";
 import type {
   VoiceCommandSession,
@@ -35,6 +37,19 @@ const IDLE_VIEW: VoiceCommandSessionView = {
   notice: "",
 };
 
+/** Tap the raw chat stream for the trace's firstToken mark — the FIRST
+ *  text-chunk off the wire, upstream of the sentence buffer, because the
+ *  buffer's whole job is to sit on text until a chunk closes and that wait
+ *  must be measured, not hidden inside the mark. Pass-through otherwise. */
+async function* tapFirstToken(
+  events: AsyncIterable<ChatTurnEvent>,
+): AsyncIterable<ChatTurnEvent> {
+  for await (const event of events) {
+    if (event.kind === "text-chunk") voiceLatencyTracer.markFirstToken();
+    yield event;
+  }
+}
+
 /** Run one voice turn against the spoken thread; yields the adapter's events
  *  and maps a transport failure to a 'failed' terminal (unless we aborted it). */
 async function* runGlobalVoiceTurn(
@@ -44,24 +59,27 @@ async function* runGlobalVoiceTurn(
 ): AsyncIterable<VoiceTurnEvent> {
   try {
     yield* adaptChatTurnStreamToVoice(
-      streamChatTurnEvents(client, {
-        scope: { kind: "global" },
-        userMessageText: utterance,
-        // The voice tier on EVERY leg (D2): sonnet at low effort, hands-free.
-        // The mode matters most — a spoken turn that stops on an approval card
-        // is a turn nobody can answer.
-        model: VOICE_MODEL,
-        thinkingEffort: VOICE_THINKING_EFFORT,
-        mode: VOICE_MODE,
-        voice: true, // the spoken thread — its streamed text is its voice
-        signal,
-      }),
+      tapFirstToken(
+        streamChatTurnEvents(client, {
+          scope: { kind: "global" },
+          userMessageText: utterance,
+          // The voice tier on EVERY leg (D2): sonnet at low effort, hands-free.
+          // The mode matters most — a spoken turn that stops on an approval card
+          // is a turn nobody can answer.
+          model: VOICE_MODEL,
+          thinkingEffort: VOICE_THINKING_EFFORT,
+          mode: VOICE_MODE,
+          voice: true, // the spoken thread — its streamed text is its voice
+          signal,
+        }),
+      ),
     );
   } catch (error) {
     if (signal.aborted) return;
     yield {
       kind: "failed",
-      message: error instanceof Error ? error.message : "the brain is unreachable",
+      message:
+        error instanceof Error ? error.message : "the brain is unreachable",
     };
   }
 }
@@ -86,7 +104,7 @@ export function useVoiceSession(options: {
     // from a broken app, so say the one thing that fixes it.
     onVoiceUnavailable: () => {
       failure.value =
-        'Vynel has no voice yet — download a speaking model in Settings → Voice.';
+        "Vynel has no voice yet — download a speaking model in Settings → Voice.";
     },
   });
 
@@ -102,7 +120,9 @@ export function useVoiceSession(options: {
     const source = preferencesQuery.data.value?.voiceSttSource;
     return source === "elevenlabs" || source === "google";
   });
-  const canListen = computed(() => usesCloudHearing.value || isWebSpeechAvailable());
+  const canListen = computed(
+    () => usesCloudHearing.value || isWebSpeechAvailable(),
+  );
 
   let session: VoiceCommandSession | null = null;
 
@@ -149,7 +169,9 @@ export function useVoiceSession(options: {
       {
         ...(initialCommand ? { initialCommand } : {}),
         ...(turnWatchdogMs !== undefined ? { turnWatchdogMs } : {}),
-        ...(options.idleTimeoutMs !== undefined ? { idleTimeoutMs: options.idleTimeoutMs } : {}),
+        ...(options.idleTimeoutMs !== undefined
+          ? { idleTimeoutMs: options.idleTimeoutMs }
+          : {}),
       },
     );
     session = started;
@@ -193,5 +215,14 @@ export function useVoiceSession(options: {
     session?.end();
   });
 
-  return { view, failure, isActive, canListen, start, end, currentSessionId, speakExternal };
+  return {
+    view,
+    failure,
+    isActive,
+    canListen,
+    start,
+    end,
+    currentSessionId,
+    speakExternal,
+  };
 }
