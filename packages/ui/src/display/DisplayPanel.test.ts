@@ -53,9 +53,13 @@ describe("DisplayPanel", () => {
 
   it("pins the readout to a fixed number of rows when asked — a growing log must not move the room", () => {
     const wrapper = mount(DisplayPanel, {
-      props: { title: "Telemetry", rows: [{ label: "23:01", value: "Voice started" }], lines: 6 },
+      props: {
+        title: "Telemetry",
+        rows: [{ label: "23:01", value: "Voice started" }],
+        lines: 6,
+      },
     });
-    const rows = wrapper.find("[data-testid=\"panel-rows\"]");
+    const rows = wrapper.find('[data-testid="panel-rows"]');
     expect(rows.attributes("style")).toContain("height: calc(6 * 1.75em)");
     expect(rows.attributes("style")).toContain("overflow: hidden");
   });
@@ -64,6 +68,8 @@ describe("DisplayPanel", () => {
     const wrapper = mount(DisplayPanel, {
       props: { title: "System", rows: [{ label: "link", value: "connected" }] },
     });
-    expect(wrapper.find("[data-testid=\"panel-rows\"]").attributes("style")).toBeUndefined();
+    expect(
+      wrapper.find('[data-testid="panel-rows"]').attributes("style"),
+    ).toBeUndefined();
   });
 });

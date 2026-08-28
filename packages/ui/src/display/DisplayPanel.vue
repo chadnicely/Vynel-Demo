@@ -53,7 +53,8 @@ const rowsStyle = computed(() =>
 .display-panel {
   position: relative;
   border: 1px solid var(--display-accent-faint, rgba(79, 216, 255, 0.16));
-  background: rgba(3, 14, 26, 0.55);
+  background: var(--display-panel-bg, rgba(3, 14, 26, 0.55));
+  border-radius: var(--display-panel-radius, 0px);
   padding: 9px 11px;
   font-size: 10px;
   line-height: 1.75;
@@ -130,17 +131,17 @@ const rowsStyle = computed(() =>
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--display-text, #cdf3ff);
-  text-shadow: 0 0 8px rgba(79, 216, 255, 0.6);
+  text-shadow: 0 0 8px var(--display-glow, rgba(79, 216, 255, 0.6));
 }
 
 .row-value.is-attention {
   color: var(--display-attention, #ffc46b);
-  text-shadow: 0 0 8px rgba(255, 196, 107, 0.6);
+  text-shadow: 0 0 8px var(--display-attention-glow, rgba(255, 196, 107, 0.6));
 }
 
 .row-value.is-live {
   color: var(--display-accent, #4fd8ff);
-  text-shadow: 0 0 10px rgba(79, 216, 255, 0.85);
+  text-shadow: 0 0 10px var(--display-glow, rgba(79, 216, 255, 0.85));
 }
 
 .row-value.is-muted {

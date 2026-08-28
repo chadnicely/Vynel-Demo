@@ -13,7 +13,15 @@ import type { MaybeRefOrGetter, Ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia, type Pinia } from "pinia";
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
-import { DisplayOrb, DisplayPanel } from "@vynel/ui";
+import {
+  DisplayBackdrop,
+  DisplayOrb,
+  DisplayPanel,
+  DisplayPresence,
+  DisplayThemeMenu,
+  resolveDisplayShape,
+  resolveDisplayColour,
+} from "@vynel/ui";
 import type { VynelClient } from "@vynel/sdk";
 import type { LiveChannelServerFrame } from "@vynel/contracts/chat/live-channel";
 import type { DisplayWidgetView } from "@vynel/contracts/display/display-widget";
@@ -59,10 +67,20 @@ vi.mock("../../composables/voice/use-voice-session.js", async () => {
     () => voice.view.value.state !== "ended",
   ) as unknown as Ref<boolean>;
   voice.start = vi.fn(() => {
-    voice.view.value = { state: "listening", transcript: "", spokenText: "", notice: "" };
+    voice.view.value = {
+      state: "listening",
+      transcript: "",
+      spokenText: "",
+      notice: "",
+    };
   });
   voice.end = vi.fn(() => {
-    voice.view.value = { state: "ended", transcript: "", spokenText: "", notice: "" };
+    voice.view.value = {
+      state: "ended",
+      transcript: "",
+      spokenText: "",
+      notice: "",
+    };
   });
   // A relayed line is taken by the live session whenever a turn is in flight —
   // the room's default, so the side player is never reached in these tests.
@@ -83,21 +101,26 @@ vi.mock("../../composables/voice/use-voice-session.js", async () => {
 // The daemon link's own player (the idle-room path for a relayed line) —
 // stubbed so a test can hold a line "playing" and read the orb while it does.
 // `observeSpokenSentenceStart` stays real: the orb's per-clause spike rides it.
-const relayPlayback = vi.hoisted(() => ({ finish: null as null | (() => void) }));
+const relayPlayback = vi.hoisted(() => ({
+  finish: null as null | (() => void),
+}));
 
-vi.mock("../../composables/voice/spoken-audio-player.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof spokenAudioPlayerModule>();
-  return {
-    ...actual,
-    createSpokenAudioPlayer: () => ({
-      play: () =>
-        new Promise<void>((resolve) => {
-          relayPlayback.finish = resolve;
-        }),
-      cancel: () => relayPlayback.finish?.(),
-    }),
-  };
-});
+vi.mock(
+  "../../composables/voice/spoken-audio-player.js",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof spokenAudioPlayerModule>();
+    return {
+      ...actual,
+      createSpokenAudioPlayer: () => ({
+        play: () =>
+          new Promise<void>((resolve) => {
+            relayPlayback.finish = resolve;
+          }),
+        cancel: () => relayPlayback.finish?.(),
+      }),
+    };
+  },
+);
 
 /** The board, faked. What these cases are about is the view's CONTRACT with
  *  `use-display-widgets`: which slot a card lands in, what Clear calls, and
@@ -250,7 +273,12 @@ interface MountOptions {
 
 async function mountDisplay(options: MountOptions = {}) {
   const { prepare, scope = { kind: "global" }, voiceOn = true } = options;
-  voice.view.value = { state: "ended", transcript: "", spokenText: "", notice: "" };
+  voice.view.value = {
+    state: "ended",
+    transcript: "",
+    spokenText: "",
+    notice: "",
+  };
   voice.failure.value = null;
   voice.start.mockClear();
   voice.end.mockClear();
@@ -268,7 +296,14 @@ async function mountDisplay(options: MountOptions = {}) {
     global: {
       plugins: [
         pinia,
-        [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }],
+        [
+          VueQueryPlugin,
+          {
+            queryClient: new QueryClient({
+              defaultOptions: { queries: { retry: false } },
+            }),
+          },
+        ],
       ],
       provide: { [vynelClientKey as symbol]: quietClient(announcedSessions) },
     },
@@ -293,7 +328,14 @@ async function remountDisplay() {
     global: {
       plugins: [
         windowPinia,
-        [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }],
+        [
+          VueQueryPlugin,
+          {
+            queryClient: new QueryClient({
+              defaultOptions: { queries: { retry: false } },
+            }),
+          },
+        ],
       ],
       provide: { [vynelClientKey as symbol]: quietClient(announcedSessions) },
     },
@@ -305,7 +347,12 @@ async function remountDisplay() {
 
 /** What idle silence does: the session settles and the view goes quiet. */
 function idleTimeout(): void {
-  voice.view.value = { state: "ended", transcript: "", spokenText: "", notice: "" };
+  voice.view.value = {
+    state: "ended",
+    transcript: "",
+    spokenText: "",
+    notice: "",
+  };
   voice.fireEnded();
 }
 
@@ -316,17 +363,30 @@ function voiceChannelOf(socket: FakeLiveSocket): string {
     .find((channel) => channel.startsWith("voice:"))!;
 }
 
-function panelTitles(wrapper: Awaited<ReturnType<typeof mountDisplay>>): string[] {
-  return wrapper.findAllComponents(DisplayPanel).map((panel) => panel.props("title"));
+function panelTitles(
+  wrapper: Awaited<ReturnType<typeof mountDisplay>>,
+): string[] {
+  return wrapper
+    .findAllComponents(DisplayPanel)
+    .map((panel) => panel.props("title"));
 }
 
 describe("DisplayView", () => {
   it("lays out the two columns around the stage", async () => {
     const wrapper = await mountDisplay();
-    expect(wrapper.find('[data-testid="display-column-left"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="display-column-left"]').exists()).toBe(
+      true,
+    );
     expect(wrapper.find('[data-testid="display-stage"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="display-column-right"]').exists()).toBe(true);
-    expect(panelTitles(wrapper)).toEqual(["System", "Telemetry", "Account", "Legend"]);
+    expect(wrapper.find('[data-testid="display-column-right"]').exists()).toBe(
+      true,
+    );
+    expect(panelTitles(wrapper)).toEqual([
+      "System",
+      "Telemetry",
+      "Account",
+      "Legend",
+    ]);
   });
 
   // An empty board still names its three regions, so the room reads as ready
@@ -343,7 +403,10 @@ describe("DisplayView", () => {
   it("reads the app's real status into the panels — quiet when the machine is", async () => {
     const wrapper = await mountDisplay();
     const system = wrapper.findAllComponents(DisplayPanel)[0]!;
-    const rows = system.props("rows") as readonly { label: string; value: string }[];
+    const rows = system.props("rows") as readonly {
+      label: string;
+      value: string;
+    }[];
     expect(rows.map((row) => [row.label, row.value])).toEqual([
       ["Link", "offline"],
       ["Working", "nothing running"],
@@ -352,7 +415,9 @@ describe("DisplayView", () => {
       ["Waiting", "nothing"],
     ]);
     const account = wrapper.findAllComponents(DisplayPanel)[2]!;
-    expect((account.props("rows") as readonly { value: string }[])[0]!.value).toBe("Chad");
+    expect(
+      (account.props("rows") as readonly { value: string }[])[0]!.value,
+    ).toBe("Chad");
   });
 
   // The room is a SCREEN, not the conversation. It opens over whatever the
@@ -379,7 +444,9 @@ describe("DisplayView", () => {
     // Coming back re-attaches to the same session rather than opening a second.
     const again = await remountDisplay();
     expect(voice.start).toHaveBeenCalledTimes(1);
-    expect(again.get('[data-testid="display-listening-pill"]').text()).toBe("Listening");
+    expect(again.get('[data-testid="display-listening-pill"]').text()).toBe(
+      "Listening",
+    );
   });
 
   it("the listening pill mirrors the mic and mutes it", async () => {
@@ -435,7 +502,9 @@ describe("DisplayView", () => {
     const wrapper = await mountDisplay({ voiceOn: false });
     const pill = wrapper.get('[data-testid="display-listening-pill"]');
     expect(pill.text()).toBe("Start");
-    expect(wrapper.get('[data-testid="display-voice-pill"]').text()).toBe("Voice on");
+    expect(wrapper.get('[data-testid="display-voice-pill"]').text()).toBe(
+      "Voice on",
+    );
 
     await pill.trigger("click");
     expect(voice.start).toHaveBeenCalledTimes(1);
@@ -446,7 +515,10 @@ describe("DisplayView", () => {
   it("drives the orb from the session — listening through the reply, speaking with it", async () => {
     const wrapper = await mountDisplay();
     const orb = () => wrapper.getComponent(DisplayOrb);
-    expect([orb().props("listening"), orb().props("speaking")]).toEqual([true, false]);
+    expect([orb().props("listening"), orb().props("speaking")]).toEqual([
+      true,
+      false,
+    ]);
 
     voice.view.value = {
       state: "speaking",
@@ -455,7 +527,10 @@ describe("DisplayView", () => {
       notice: "",
     };
     await wrapper.vm.$nextTick();
-    expect([orb().props("listening"), orb().props("speaking")]).toEqual([true, true]);
+    expect([orb().props("listening"), orb().props("speaking")]).toEqual([
+      true,
+      true,
+    ]);
     // The reply so far is the caption — the same rule the voice stage uses.
     expect(wrapper.find(".caption").text()).toBe("All quiet.");
   });
@@ -473,7 +548,9 @@ describe("DisplayView", () => {
     const wrapper = await mountDisplay();
     voice.failure.value = "Voice recognition needs Chrome or Edge.";
     await wrapper.vm.$nextTick();
-    expect(wrapper.find(".caption").text()).toBe("Voice recognition needs Chrome or Edge.");
+    expect(wrapper.find(".caption").text()).toBe(
+      "Voice recognition needs Chrome or Edge.",
+    );
   });
 });
 
@@ -493,7 +570,11 @@ describe("DisplayView — the daemon link", () => {
     socket.serverSends({
       kind: "event",
       channel,
-      event: { kind: "speak", text: "your build is green", sessionId: "sched-1" },
+      event: {
+        kind: "speak",
+        text: "your build is green",
+        sessionId: "sched-1",
+      },
     } as LiveChannelServerFrame);
 
     expect(voice.speakExternal).toHaveBeenCalledWith("your build is green");
@@ -542,10 +623,17 @@ describe("DisplayView — the daemon link", () => {
     socket.serverAcks(channel);
     const orb = () => wrapper.getComponent(DisplayOrb);
     const daemonState = (state: string) =>
-      socket.serverSends({ kind: "event", channel, event: { kind: "state", state } } as LiveChannelServerFrame);
+      socket.serverSends({
+        kind: "event",
+        channel,
+        event: { kind: "state", state },
+      } as LiveChannelServerFrame);
 
     // The room's own session, with a quiet daemon behind it.
-    expect([orb().props("listening"), orb().props("speaking")]).toEqual([true, false]);
+    expect([orb().props("listening"), orb().props("speaking")]).toEqual([
+      true,
+      false,
+    ]);
 
     // Idle silence ends it — with neither leg live the orb goes deaf.
     idleTimeout();
@@ -555,11 +643,17 @@ describe("DisplayView — the daemon link", () => {
     // The daemon takes the conversation: the room's orb mirrors it anyway.
     daemonState("listening");
     await wrapper.vm.$nextTick();
-    expect([orb().props("listening"), orb().props("speaking")]).toEqual([true, false]);
+    expect([orb().props("listening"), orb().props("speaking")]).toEqual([
+      true,
+      false,
+    ]);
 
     daemonState("speaking");
     await wrapper.vm.$nextTick();
-    expect([orb().props("listening"), orb().props("speaking")]).toEqual([true, true]);
+    expect([orb().props("listening"), orb().props("speaking")]).toEqual([
+      true,
+      true,
+    ]);
 
     wrapper.unmount();
     restoreSocket();
@@ -631,13 +725,26 @@ describe("DisplayView — announcing the conversation to the dock", () => {
       caption: "Listening…",
     });
 
-    voice.view.value = { state: "thinking", transcript: "", spokenText: "", notice: "" };
+    voice.view.value = {
+      state: "thinking",
+      transcript: "",
+      spokenText: "",
+      notice: "",
+    };
     await flushPromises();
-    expect(announcedSessions.at(-1)).toMatchObject({ live: true, phase: "thinking" });
+    expect(announcedSessions.at(-1)).toMatchObject({
+      live: true,
+      phase: "thinking",
+    });
 
     // The room closes; the conversation — and the corner row showing it — does not.
     wrapper.unmount();
-    voice.view.value = { state: "speaking", transcript: "", spokenText: "All quiet.", notice: "" };
+    voice.view.value = {
+      state: "speaking",
+      transcript: "",
+      spokenText: "All quiet.",
+      notice: "",
+    };
     await flushPromises();
     expect(announcedSessions.at(-1)).toMatchObject({
       live: true,
@@ -650,7 +757,9 @@ describe("DisplayView — announcing the conversation to the dock", () => {
   // rather than disappearing and stranding the user's own mute.
   it("keeps a muted room live, and reports it as muted", async () => {
     const wrapper = await mountDisplay();
-    await wrapper.find("[data-testid='display-listening-pill']").trigger("click");
+    await wrapper
+      .find("[data-testid='display-listening-pill']")
+      .trigger("click");
     await flushPromises();
     expect(announcedSessions.at(-1)).toEqual({
       live: true,
@@ -663,7 +772,10 @@ describe("DisplayView — announcing the conversation to the dock", () => {
     await mountDisplay();
     idleTimeout();
     await flushPromises();
-    expect(announcedSessions.at(-1)).toMatchObject({ live: false, phase: "idle" });
+    expect(announcedSessions.at(-1)).toMatchObject({
+      live: false,
+      phase: "idle",
+    });
   });
 });
 
@@ -708,7 +820,9 @@ describe("DisplayView — the board", () => {
     });
     // Once, by the switch this case stands in for — never again by the room.
     expect(voice.start).toHaveBeenCalledTimes(1);
-    expect(wrapper.get('[data-testid="display-listening-pill"]').text()).toBe("Listening");
+    expect(wrapper.get('[data-testid="display-listening-pill"]').text()).toBe(
+      "Listening",
+    );
   });
 
   it("puts every widget in the slot it belongs to", async () => {
@@ -733,11 +847,15 @@ describe("DisplayView — the board", () => {
 
     const wrapper = await mountDisplay();
 
-    expect(wrapper.find('[data-testid="display-slot-stage"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="display-slot-stage"]').exists()).toBe(
+      false,
+    );
     expect(wrapper.find('[data-testid="display-slot-left"]').text()).toBe(
       "Claude can put reports here",
     );
-    expect(wrapper.find('[data-testid="display-slot-right"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="display-slot-right"]').exists()).toBe(
+      true,
+    );
   });
 
   it("offers Clear only with something to clear, and clears the scope for real", async () => {
@@ -767,7 +885,9 @@ describe("DisplayView — the board", () => {
     await wrapper.get('[data-testid="display-clear"]').trigger("click");
     await flushPromises();
 
-    expect(wrapper.get('[data-testid="display-clear"]').text()).toBe("Clear failed");
+    expect(wrapper.get('[data-testid="display-clear"]').text()).toBe(
+      "Clear failed",
+    );
   });
 
   it("logs one telemetry line per board change, off the room's one subscription", async () => {
@@ -784,5 +904,231 @@ describe("DisplayView — the board", () => {
       "widget removed · This week",
       "display cleared",
     ]);
+  });
+});
+
+// The room's theme: a palette AND a shape. These cases pin the WIRING — that
+// the view hangs the chosen id where the CSS expects it, hands the theme's own
+// orb palette to the presence, and renders the stage that theme asked for.
+// Which colours each theme carries is `display-themes.test.ts`'s business.
+// The room's look is TWO independent choices — a shape and a colour. These
+// cases pin the WIRING: that the view hangs both where the CSS expects them,
+// hands the canvas the right half of each, and never lets one axis move the
+// other. Which colours and shapes exist is the rosters' own business.
+describe("DisplayView — shape and colour", () => {
+  beforeEach(() => {
+    localStorage.removeItem("vynel.display-shape");
+    localStorage.removeItem("vynel.display-colour");
+  });
+
+  it("opens on the defaults and hangs all three attributes", async () => {
+    const wrapper = await mountDisplay();
+    const root = wrapper.get(".display-root");
+
+    expect(root.attributes("data-display-shape")).toBe("sphere");
+    expect(root.attributes("data-display-colour")).toBe("cyan");
+    // Chrome rides the shape — it is what the "bare" CSS keys off.
+    expect(root.attributes("data-display-chrome")).toBe("bare");
+  });
+
+  it("opens on the stored pair rather than the defaults", async () => {
+    const wrapper = await mountDisplay({
+      prepare: (ui) => {
+        ui.setDisplayShape("nova");
+        ui.setDisplayColour("crimson");
+      },
+    });
+    const root = wrapper.get(".display-root");
+
+    expect(root.attributes("data-display-shape")).toBe("nova");
+    expect(root.attributes("data-display-colour")).toBe("crimson");
+  });
+
+  // The whole reason the axes are split: changing one must leave the other
+  // exactly where it was. If picking a shape reset the colour, the split would
+  // buy nothing.
+  it("keeps the axes independent", async () => {
+    const wrapper = await mountDisplay({
+      prepare: (ui) => ui.setDisplayColour("mint"),
+    });
+    const menu = wrapper.getComponent(DisplayThemeMenu);
+
+    menu.vm.$emit("update:shape", "lattice");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get(".display-root").attributes("data-display-colour")).toBe(
+      "mint",
+    );
+    expect(useUiStore().displayShape).toBe("lattice");
+
+    menu.vm.$emit("update:colour", "gold");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get(".display-root").attributes("data-display-shape")).toBe(
+      "lattice",
+    );
+    expect(useUiStore().displayColour).toBe("gold");
+  });
+
+  // The canvas cannot read CSS, so the view hands it the halves directly: the
+  // FORM comes from the shape and the PALETTE from the colour. Crossing those
+  // two wires is the bug that would make every room look the same.
+  it("feeds the canvas its form from the shape and its palette from the colour", async () => {
+    const wrapper = await mountDisplay({
+      prepare: (ui) => {
+        ui.setDisplayShape("ribbon");
+        ui.setDisplayColour("ember");
+      },
+    });
+    const presence = wrapper.getComponent(DisplayPresence);
+
+    expect(presence.props("form")).toBe(resolveDisplayShape("ribbon").form);
+    expect(presence.props("palette")).toBe(resolveDisplayColour("ember").orb);
+  });
+
+  it("hands each canvas shape its own form", async () => {
+    for (const [id, form] of [
+      ["sphere", "sphere"],
+      ["flare", "flare"],
+      ["ribbon", "ribbon"],
+      ["warp", "warp"],
+      ["plexus", "plexus"],
+      ["lattice", "lattice"],
+      ["fan", "fan"],
+      ["nova", "nova"],
+    ] as const) {
+      const wrapper = await mountDisplay({
+        prepare: (ui) => ui.setDisplayShape(id),
+      });
+      expect(wrapper.getComponent(DisplayPresence).props("form")).toBe(form);
+    }
+  });
+
+  it("renders the stage the shape asked for", async () => {
+    const orbRoom = await mountDisplay();
+    expect(orbRoom.getComponent(DisplayPresence).props("kind")).toBe("orb");
+    expect(orbRoom.findComponent(DisplayOrb).exists()).toBe(true);
+
+    const wave = await mountDisplay({
+      prepare: (ui) => ui.setDisplayShape("wave"),
+    });
+    expect(wave.getComponent(DisplayPresence).props("kind")).toBe("wave");
+    expect(wave.findComponent(DisplayOrb).exists()).toBe(false);
+  });
+
+  // The panels are their own SWITCH, independent of shape and colour — every
+  // shape reads with them up or down. Off by default: the room is filmed.
+  it("keeps the panels behind a switch, off by default", async () => {
+    const wrapper = await mountDisplay();
+    const root = () => wrapper.get(".display-root");
+    expect(root().attributes("data-display-chrome")).toBe("bare");
+
+    useUiStore().toggleDisplayPanels();
+    await wrapper.vm.$nextTick();
+    expect(root().attributes("data-display-chrome")).toBe("panels");
+    expect(wrapper.findAllComponents(DisplayPanel).length).toBeGreaterThan(0);
+
+    useUiStore().toggleDisplayPanels();
+    await wrapper.vm.$nextTick();
+    expect(root().attributes("data-display-chrome")).toBe("bare");
+  });
+
+  // The switch must not disturb either of the other two axes.
+  it("leaves shape and colour alone when the panels are toggled", async () => {
+    const wrapper = await mountDisplay({
+      prepare: (ui) => {
+        ui.setDisplayShape("nova");
+        ui.setDisplayColour("gold");
+      },
+    });
+
+    useUiStore().toggleDisplayPanels();
+    await wrapper.vm.$nextTick();
+
+    const root = wrapper.get(".display-root");
+    expect(root.attributes("data-display-shape")).toBe("nova");
+    expect(root.attributes("data-display-colour")).toBe("gold");
+  });
+
+  // The "orb unavailable" line is about the CANVAS. On a CSS shape there is no
+  // canvas to lose, so the notice must not follow the user into one.
+  it("only warns about a dead canvas on a canvas shape", async () => {
+    const wrapper = await mountDisplay();
+    wrapper
+      .getComponent(DisplayPresence)
+      .vm.$emit("renderer-failed", new Error("no ctx"));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain("Orb unavailable");
+
+    wrapper.getComponent(DisplayThemeMenu).vm.$emit("update:shape", "wave");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).not.toContain("Orb unavailable");
+  });
+
+  // Retired ids in localStorage must leave a painted room, not a blank one.
+  it("falls back to the defaults for unknown stored ids", async () => {
+    const wrapper = await mountDisplay({
+      prepare: (ui) => {
+        ui.displayShape = "retired-shape";
+        ui.displayColour = "retired-colour";
+      },
+    });
+    const root = wrapper.get(".display-root");
+
+    expect(root.attributes("data-display-shape")).toBe("sphere");
+    expect(root.attributes("data-display-colour")).toBe("cyan");
+  });
+
+  it("leaves the app's own light/dark theme alone", async () => {
+    const wrapper = await mountDisplay({
+      prepare: (ui) => ui.setDisplayColour("crimson"),
+    });
+
+    expect(useUiStore().theme).toBe("dark");
+    expect(wrapper.get(".display-root").attributes("data-display-colour")).toBe(
+      "crimson",
+    );
+  });
+});
+
+// The moving ground. The view's job is to mount it behind the room and restart
+// it when the COLOUR changes; what it paints is the stylesheet's business.
+describe("DisplayView — the backdrop", () => {
+  beforeEach(() => {
+    localStorage.removeItem("vynel.display-shape");
+    localStorage.removeItem("vynel.display-colour");
+  });
+
+  it("mounts the backdrop inside the room, before the content", async () => {
+    const wrapper = await mountDisplay();
+    const root = wrapper.get(".display-root").element;
+
+    expect(wrapper.findComponent(DisplayBackdrop).exists()).toBe(true);
+    expect(root.firstElementChild?.getAttribute("data-testid")).toBe(
+      "display-backdrop",
+    );
+  });
+
+  // Keyed on the COLOUR, not the shape: the backdrop carries no geometry, so a
+  // shape change must not restart its loops — only a repaint should.
+  it("remounts the backdrop on a colour change but not on a shape change", async () => {
+    const wrapper = await mountDisplay();
+    const menu = wrapper.getComponent(DisplayThemeMenu);
+    const first = wrapper.getComponent(DisplayBackdrop).vm.$.uid;
+
+    menu.vm.$emit("update:shape", "plexus");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.getComponent(DisplayBackdrop).vm.$.uid).toBe(first);
+
+    menu.vm.$emit("update:colour", "violet");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.getComponent(DisplayBackdrop).vm.$.uid).not.toBe(first);
+  });
+
+  it("keeps the backdrop on every shape", async () => {
+    for (const shape of ["sphere", "warp", "fan", "wave", "console"]) {
+      const wrapper = await mountDisplay({
+        prepare: (ui) => ui.setDisplayShape(shape),
+      });
+      expect(wrapper.findComponent(DisplayBackdrop).exists()).toBe(true);
+    }
   });
 });

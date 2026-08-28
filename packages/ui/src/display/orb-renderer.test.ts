@@ -206,34 +206,53 @@ describe("createOrbRenderer", () => {
     renderer.stop();
   });
 
+  // Asserted as RELATIONSHIPS rather than against fixed alphas: the bloom is
+  // tuned for camera and its constants move, but "eased, not cut" and "an
+  // over-range energy settles exactly where 1 does" are the actual contract.
   it("eases energy toward its target and clamps it to 0..1", () => {
-    const renderer = createOrbRenderer(canvas, { moteCount: 4 });
-    renderer.setEnergy(5);
-
+    const overRange = createOrbRenderer(canvas, { moteCount: 4 });
+    runFrames(1);
+    const rest = firstStopAlpha(recorder.current.gradients.at(-1)!);
+    overRange.setEnergy(5);
     runFrames(1);
     const afterOneFrame = firstStopAlpha(recorder.current.gradients.at(-1)!);
-    runFrames(200);
-    const settled = firstStopAlpha(recorder.current.gradients.at(-1)!);
+    runFrames(300);
+    const settledOverRange = firstStopAlpha(recorder.current.gradients.at(-1)!);
+    overRange.stop();
 
-    // Eased, not cut: one frame moves 4% of the way.
-    expect(afterOneFrame).toBeGreaterThan(0.55);
-    expect(afterOneFrame).toBeLessThan(0.6);
-    // Clamped: an energy of 5 settles exactly where 1 does (0.55 + 0.35).
-    expect(settled).toBeCloseTo(0.9, 2);
-    renderer.stop();
+    recorder.current = createContextRecorder();
+    const atMax = createOrbRenderer(canvas, { moteCount: 4 });
+    atMax.setEnergy(1);
+    runFrames(300);
+    const settledAtMax = firstStopAlpha(recorder.current.gradients.at(-1)!);
+    atMax.stop();
+
+    // Eased, not cut: one frame is a long way short of where it lands.
+    expect(afterOneFrame).toBeGreaterThan(rest);
+    expect(afterOneFrame).toBeLessThan(settledOverRange);
+    // Clamped: 5 is not brighter than 1.
+    expect(settledOverRange).toBeCloseTo(settledAtMax, 2);
+    // …and energy is still VISIBLE at the top of its range — a bloom that
+    // saturates its ceiling would report the same alpha busy as at rest.
+    expect(settledAtMax).toBeGreaterThan(rest + 0.05);
   });
 
   it("clamps a negative energy to zero", () => {
-    const renderer = createOrbRenderer(canvas, { moteCount: 4 });
-    renderer.setEnergy(-3);
-
+    const negative = createOrbRenderer(canvas, { moteCount: 4 });
+    negative.setEnergy(-3);
     runFrames(200);
+    const settledNegative = firstStopAlpha(recorder.current.gradients.at(-1)!);
+    negative.stop();
 
-    expect(firstStopAlpha(recorder.current.gradients.at(-1)!)).toBeCloseTo(
-      0.55,
-      2,
-    );
-    renderer.stop();
+    recorder.current = createContextRecorder();
+    const zero = createOrbRenderer(canvas, { moteCount: 4 });
+    zero.setEnergy(0);
+    runFrames(200);
+    const settledZero = firstStopAlpha(recorder.current.gradients.at(-1)!);
+    zero.stop();
+
+    // Floored: -3 is not dimmer than 0.
+    expect(settledNegative).toBeCloseTo(settledZero, 2);
   });
 
   it("brightens while listening and while speaking", () => {

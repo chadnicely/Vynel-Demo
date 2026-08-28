@@ -1,9 +1,18 @@
 import { computed, ref, watch } from "vue";
 import { defineStore } from "pinia";
-import { WORKSPACE_ACCENT_SLOTS } from "@vynel/ui";
+import {
+  DEFAULT_DISPLAY_SHAPE_ID,
+  DEFAULT_DISPLAY_COLOUR_ID,
+  isDisplayShapeId,
+  isDisplayColourId,
+  WORKSPACE_ACCENT_SLOTS,
+} from "@vynel/ui";
 import { DEFAULT_SESSION_MODE, SESSION_MODES } from "@vynel/session";
 import type { SessionMode } from "@vynel/session";
-import { CHAT_MODEL_ID_PATTERN, DEFAULT_CHAT_MODEL } from "@vynel/contracts/chat/chat-models";
+import {
+  CHAT_MODEL_ID_PATTERN,
+  DEFAULT_CHAT_MODEL,
+} from "@vynel/contracts/chat/chat-models";
 import {
   DEFAULT_THINKING_EFFORT,
   THINKING_EFFORT_OPTIONS,
@@ -87,6 +96,28 @@ export interface ShellTab {
 export const GLOBAL_TAB_ID = "global";
 
 const THEME_STORAGE_KEY = "vynel.theme";
+/** The Display's OWN look, separate from the app's light/dark: the room paints
+ *  its own ground (display-root.css is dark-only by decision), so the two
+ *  cannot be one setting without the app theme silently restyling the room.
+ *
+ *  TWO keys, because shape and colour are two independent choices — storing
+ *  the pair as one id would make "the same shape in another colour" a
+ *  different saved value, which is the collapse the split exists to avoid. */
+const DISPLAY_SHAPE_STORAGE_KEY = "vynel.display-shape";
+const DISPLAY_COLOUR_STORAGE_KEY = "vynel.display-colour";
+/** Whether the telemetry panels flank the presence. A THIRD axis, not a
+ *  property of the shape: every shape reads fine with them up or down, and
+ *  baking it into the shape would mean two entries per shape in the roster —
+ *  the same duplication the shape/colour split exists to avoid. */
+const DISPLAY_PANELS_STORAGE_KEY = "vynel.display-panels";
+/** Whether the Nodes screen borrows the Display's colour and moving ground.
+ *  A trial switch: the node STATUS colours never follow it either way, so this
+ *  only decides whether the room around them is themed or the original. */
+const NODES_THEMED_STORAGE_KEY = "vynel.nodes-themed";
+/** A fabricated fleet, so the Nodes screen can be LOOKED at before any real
+ *  projects exist. Off by default and never consulted once a real fleet
+ *  arrives — it is a viewing aid, not a fixture. */
+const NODES_DEMO_STORAGE_KEY = "vynel.nodes-demo";
 const TABS_STORAGE_KEY = "vynel.tabs";
 const NAV_MODE_STORAGE_KEY = "vynel.nav-mode";
 const LEGACY_WORKSPACE_STORAGE_KEY = "vynel.active-workspace";
@@ -100,12 +131,49 @@ function readStoredTheme(): Theme {
   return stored === "light" ? "light" : "dark";
 }
 
+// Fail-closed like every other restore: a retired id resolves to the default
+// rather than leaving the room with no shape or no palette at all. Anyone
+// carrying a `vynel.display-theme` value from before the split simply lands on
+// the defaults — the old ids named a shape AND a colour together, so there is
+// nothing in one of them worth trying to recover into two.
+function readStoredDisplayShape(): string {
+  const stored = localStorage.getItem(DISPLAY_SHAPE_STORAGE_KEY);
+  return stored !== null && isDisplayShapeId(stored)
+    ? stored
+    : DEFAULT_DISPLAY_SHAPE_ID;
+}
+
+function readStoredDisplayColour(): string {
+  const stored = localStorage.getItem(DISPLAY_COLOUR_STORAGE_KEY);
+  return stored !== null && isDisplayColourId(stored)
+    ? stored
+    : DEFAULT_DISPLAY_COLOUR_ID;
+}
+
+// Off by default — the room is filmed, and the panels are the first thing that
+// makes it look like a dashboard rather than a presence. Only an explicit
+// stored "on" brings them back, so junk storage fails closed to bare.
+function readStoredDisplayPanels(): boolean {
+  return localStorage.getItem(DISPLAY_PANELS_STORAGE_KEY) === "on";
+}
+
+// On by default — but an explicit stored "off" wins, so turning it off sticks.
+function readStoredNodesThemed(): boolean {
+  return localStorage.getItem(NODES_THEMED_STORAGE_KEY) !== "off";
+}
+
+function readStoredNodesDemo(): boolean {
+  return localStorage.getItem(NODES_DEMO_STORAGE_KEY) === "on";
+}
+
 // Menu is the default (Kafi, 2026-08-21) — the workspace tree is the shell's
 // primary way in; tabs is now the opt-in. Only an explicit stored "tabs"
 // wins, so junk storage falls back to menu like every stored value. Anyone
 // who never touched the pick moves to menu; anyone who chose tabs keeps it.
 function readStoredNavMode(): NavMode {
-  return localStorage.getItem(NAV_MODE_STORAGE_KEY) === "tabs" ? "tabs" : "menu";
+  return localStorage.getItem(NAV_MODE_STORAGE_KEY) === "tabs"
+    ? "tabs"
+    : "menu";
 }
 
 // Fail-closed restores: an unknown stored value (a renamed mode, a retired
@@ -198,7 +266,9 @@ function readStoredTabs(): { tabs: ShellTab[]; activeTabId: string } {
       };
       const workspaceTabs = (parsed.tabs ?? [])
         .filter(
-          (tab): tab is { id: string; workspaceId: string; colorSlot?: unknown } =>
+          (
+            tab,
+          ): tab is { id: string; workspaceId: string; colorSlot?: unknown } =>
             typeof tab.id === "string" &&
             tab.id !== GLOBAL_TAB_ID &&
             typeof tab.workspaceId === "string",
@@ -249,6 +319,60 @@ export const useUiStore = defineStore("ui", () => {
     theme.value = theme.value === "dark" ? "light" : "dark";
   }
 
+  // The Display's shape and colour. Persisted like the app theme, but NOT
+  // mirrored onto the document: the room carries them on its own root, so
+  // nothing outside the Display can be restyled by either.
+  const displayShape = ref<string>(readStoredDisplayShape());
+  const displayColour = ref<string>(readStoredDisplayColour());
+
+  watch(displayShape, (value) =>
+    localStorage.setItem(DISPLAY_SHAPE_STORAGE_KEY, value),
+  );
+  watch(displayColour, (value) =>
+    localStorage.setItem(DISPLAY_COLOUR_STORAGE_KEY, value),
+  );
+
+  function setDisplayShape(id: string) {
+    if (!isDisplayShapeId(id) || id === displayShape.value) return;
+    displayShape.value = id;
+  }
+
+  function setDisplayColour(id: string) {
+    if (!isDisplayColourId(id) || id === displayColour.value) return;
+    displayColour.value = id;
+  }
+
+  // The panels switch — the third axis, independent of both shape and colour.
+  const displayPanels = ref<boolean>(readStoredDisplayPanels());
+
+  watch(displayPanels, (value) =>
+    localStorage.setItem(DISPLAY_PANELS_STORAGE_KEY, value ? "on" : "off"),
+  );
+
+  function toggleDisplayPanels() {
+    displayPanels.value = !displayPanels.value;
+  }
+
+  const nodesThemed = ref<boolean>(readStoredNodesThemed());
+
+  watch(nodesThemed, (value) =>
+    localStorage.setItem(NODES_THEMED_STORAGE_KEY, value ? "on" : "off"),
+  );
+
+  function toggleNodesThemed() {
+    nodesThemed.value = !nodesThemed.value;
+  }
+
+  const nodesDemo = ref<boolean>(readStoredNodesDemo());
+
+  watch(nodesDemo, (value) =>
+    localStorage.setItem(NODES_DEMO_STORAGE_KEY, value ? "on" : "off"),
+  );
+
+  function toggleNodesDemo() {
+    nodesDemo.value = !nodesDemo.value;
+  }
+
   // Navigation mode — persisted like the theme; the tab state underneath is
   // shared, so flipping modes never loses a scope or its canvas.
   const navMode = ref<NavMode>(readStoredNavMode());
@@ -274,7 +398,8 @@ export const useUiStore = defineStore("ui", () => {
 
   const globalTab = computed(() => tabs.value[0]!);
   const activeTab = computed(
-    () => tabs.value.find((tab) => tab.id === activeTabId.value) ?? globalTab.value,
+    () =>
+      tabs.value.find((tab) => tab.id === activeTabId.value) ?? globalTab.value,
   );
   const activeWorkspaceId = computed(() => activeTab.value.workspaceId);
 
@@ -367,7 +492,9 @@ export const useUiStore = defineStore("ui", () => {
       (tab) => tab.workspaceId === null || keep.has(tab.workspaceId),
     );
     if (surviving.length === tabs.value.length) return;
-    const activeSurvives = surviving.some((tab) => tab.id === activeTabId.value);
+    const activeSurvives = surviving.some(
+      (tab) => tab.id === activeTabId.value,
+    );
     tabs.value = surviving;
     if (!activeSurvives) activeTabId.value = GLOBAL_TAB_ID;
   }
@@ -383,7 +510,6 @@ export const useUiStore = defineStore("ui", () => {
   // review dialog.
   const viewingPlanId = ref<string | null>(null);
 
-
   // Composer NEW-CHAT DEFAULTS (2026-08-17): once a session exists its
   // settings live on ITS row (use-session-settings → sessions.updateSettings),
   // so these refs only seed a composer with no session yet — and the first
@@ -398,7 +524,10 @@ export const useUiStore = defineStore("ui", () => {
   const composerAutoBuildout = ref<boolean>(readStoredAutoBuildout());
 
   watch(composerAutoBuildout, (value) =>
-    localStorage.setItem(COMPOSER_AUTO_BUILDOUT_STORAGE_KEY, value ? "on" : "off"),
+    localStorage.setItem(
+      COMPOSER_AUTO_BUILDOUT_STORAGE_KEY,
+      value ? "on" : "off",
+    ),
   );
   watch(composerMode, (value) =>
     localStorage.setItem(COMPOSER_MODE_STORAGE_KEY, value),
@@ -435,6 +564,16 @@ export const useUiStore = defineStore("ui", () => {
   return {
     theme,
     toggleTheme,
+    displayShape,
+    displayColour,
+    setDisplayShape,
+    setDisplayColour,
+    displayPanels,
+    toggleDisplayPanels,
+    nodesThemed,
+    toggleNodesThemed,
+    nodesDemo,
+    toggleNodesDemo,
     navMode,
     setNavMode,
     isWorkspaceTreeOpen,

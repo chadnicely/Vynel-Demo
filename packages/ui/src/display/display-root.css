@@ -33,17 +33,30 @@
   position: relative;
   overflow: hidden;
   color: var(--display-accent);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
-  letter-spacing: 0.06em;
+  /* Typeface and tracking are themeable: a serif Zen room and a monospace HUD
+   * are not the same room with different colours. `display-themes.css` moves
+   * both; the fallbacks here keep the original look when no theme is set. */
+  font-family: var(
+    --display-font,
+    ui-monospace,
+    "SFMono-Regular",
+    Menlo,
+    monospace
+  );
+  letter-spacing: var(--display-tracking, 0.06em);
+  /* The bloom behind the stage is PART OF THE PALETTE, not decoration bolted
+   * to the HUD: hard-coding it here is what left a cyan room's blue glow
+   * burning behind a green terminal. Every theme sets these two; the defaults
+   * are the HUD's own values, so an unthemed room is unchanged. */
   background:
     radial-gradient(
       ellipse at 50% 45%,
-      rgba(30, 120, 210, 0.62),
+      var(--display-bloom-inner, rgba(30, 120, 210, 0.62)),
       transparent 66%
     ),
     radial-gradient(
       ellipse at 50% 45%,
-      rgba(20, 80, 170, 0.35),
+      var(--display-bloom-outer, rgba(20, 80, 170, 0.35)),
       transparent 80%
     ),
     linear-gradient(
@@ -60,19 +73,11 @@
   z-index: 1;
 }
 
-.display-root::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(var(--display-accent-faint) 1px, transparent 1px),
-    linear-gradient(90deg, var(--display-accent-faint) 1px, transparent 1px);
-  background-size: 46px 46px;
-  mask-image: radial-gradient(ellipse at 50% 50%, #000 20%, transparent 78%);
-  opacity: 0.5;
-}
+/* The masked grid used to live here as a pseudo-element. It has moved into
+ * DisplayBackdrop as a real layer: a pseudo-element paints BEFORE the root's
+ * children, so the backdrop's wash, blobs, vignette and scrim all stacked on
+ * top of it and no amount of raising its alpha could bring it back. As a
+ * layer it sits above the colour and below the vignette, where it reads. */
 
 .display-root::after {
   content: "";
@@ -82,7 +87,7 @@
   pointer-events: none;
   background: repeating-linear-gradient(
     180deg,
-    rgba(79, 216, 255, 0.05) 0 1px,
+    var(--display-scanline, rgba(79, 216, 255, 0.05)) 0 1px,
     transparent 1px 3px
   );
   animation: display-sweep 7s linear infinite;

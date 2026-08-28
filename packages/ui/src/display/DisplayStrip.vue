@@ -44,7 +44,7 @@ const props = defineProps<{
   letter-spacing: 0.36em;
   text-transform: uppercase;
   color: var(--display-text, #cdf3ff);
-  text-shadow: 0 0 12px rgba(79, 216, 255, 0.7);
+  text-shadow: 0 0 12px var(--display-glow, rgba(79, 216, 255, 0.7));
 }
 
 .subtitle {
@@ -64,10 +64,10 @@ const props = defineProps<{
 }
 
 .pill.on {
-  color: #041018;
+  color: var(--display-ground-bottom, #041018);
   background: var(--display-accent, #4fd8ff);
   border-color: var(--display-accent, #4fd8ff);
-  box-shadow: 0 0 14px rgba(79, 216, 255, 0.55);
+  box-shadow: 0 0 14px var(--display-glow, rgba(79, 216, 255, 0.55));
 }
 
 .pill.attention {

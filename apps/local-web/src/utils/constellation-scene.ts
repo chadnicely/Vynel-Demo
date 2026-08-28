@@ -72,6 +72,20 @@ const COL: Record<SceneNode["status"], string> = {
 };
 const DIM = "#9397ab";
 
+/** The five status colours ACTUALLY in use. Defaults to `COL` — the semantic
+ *  set above — and can be swapped wholesale for a themed one so the fleet
+ *  matches the Display on camera. The mapping is the caller's (it owns the
+ *  palette); this only holds whatever it was handed. */
+export type SceneStatusColours = Record<SceneNode["status"], string>;
+
+/** The ground's hues: one `r,g,b` body per nebula blob, plus the two star
+ *  tints. Only colour — the scene keeps its own shapes and motion. */
+export interface SceneAmbientColours {
+  blobs: readonly string[];
+  star: string;
+  starAccent: string;
+}
+
 // A message arc is its own mark, deliberately NOT one of the node colours: it
 // is an event between two dots, not the state of either. Fuchsia going out,
 // green coming home — the pair reads as question and answer at a glance.
@@ -153,6 +167,14 @@ export interface SceneHandle {
   setCoreStatus(status: SceneNode["status"]): void;
   /** Index under the pointer, or -1 — the view drives its own tooltip. */
   hitTest(clientX: number, clientY: number): number;
+  /** Recolour the drifting nebula and the starfield. `null` restores the
+   *  scene's own violets. The SHAPE of the ground never changes — only its
+   *  hue — so the screen keeps its character and merely wears the Display's
+   *  palette. */
+  setAmbientColours(colours: SceneAmbientColours | null): void;
+  /** Repaint the five statuses from a themed palette, or `null` to go back to
+   *  the semantic set. Shown-only: nothing about what a status MEANS changes. */
+  setStatusColours(colours: SceneStatusColours | null): void;
   destroy(): void;
 }
 
@@ -164,6 +186,9 @@ export function startConstellationScene(
    *  the core is furniture, as before. */
   onCorePick?: () => void,
 ): SceneHandle {
+  let ambientCol: SceneAmbientColours | null = null;
+  // Live lookup, so a theme change repaints without rebuilding the scene.
+  let statusCol: SceneStatusColours = { ...COL };
   const bgCv = document.createElement("canvas"); // starfield + nebula
   const fxCv = document.createElement("canvas"); // additive trails
   const ndCv = document.createElement("canvas"); // crisp nodes + edges
@@ -181,6 +206,8 @@ export function startConstellationScene(
   if (!bgMaybe || !fxMaybe || !ndMaybe) {
     for (const cv of [bgCv, fxCv, ndCv]) cv.remove();
     return {
+      setAmbientColours() {},
+      setStatusColours() {},
       setNodes() {},
       setMessages() {},
       setLayout() {},
@@ -404,7 +431,11 @@ export function startConstellationScene(
       // ONE ellipse per LANE, not per node: past the lane cap several nodes
       // share a lane, and stroking it once each would quietly darken it.
       // A lane is lit when anything on it is working.
-      for (let laneIndex = 0; laneIndex < orbitLaneCount(ringCount); laneIndex += 1) {
+      for (
+        let laneIndex = 0;
+        laneIndex < orbitLaneCount(ringCount);
+        laneIndex += 1
+      ) {
         const lane = orbitLane(laneIndex);
         const lit = nodes.some(
           (node, i) =>
@@ -444,7 +475,6 @@ export function startConstellationScene(
     }
   }
 
-
   /** Where a message endpoint sits. A dot this level does not draw — the global
    *  root, or a room off-screen at the other level — resolves to the core,
    *  which is what it visually IS here. */
@@ -458,7 +488,8 @@ export function startConstellationScene(
    *  never lie on top of each other. */
   function bendOf(id: string) {
     let hash = 0;
-    for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+    for (let i = 0; i < id.length; i += 1)
+      hash = (hash * 31 + id.charCodeAt(i)) | 0;
     return (hash % 2 === 0 ? 1 : -1) * (0.55 + (Math.abs(hash) % 5) * 0.14);
   }
 
@@ -500,14 +531,21 @@ export function startConstellationScene(
 
       const bend = bendOf(message.id);
       const col = MESSAGE_COL[message.direction];
-      const travelled = reduceMotion ? 1 : ease(Math.min(1, age / MESSAGE_TRAVEL_MS));
+      const travelled = reduceMotion
+        ? 1
+        : ease(Math.min(1, age / MESSAGE_TRAVEL_MS));
       const settled =
         Math.max(0, age - MESSAGE_TRAVEL_MS) /
         (MESSAGE_LIFETIME_MS - MESSAGE_TRAVEL_MS);
 
       nd.beginPath();
       for (let step = 0; step <= SEGMENTS; step += 1) {
-        const point = messagePoint(from, to, bend, (step / SEGMENTS) * travelled);
+        const point = messagePoint(
+          from,
+          to,
+          bend,
+          (step / SEGMENTS) * travelled,
+        );
         if (step === 0) nd.moveTo(point.x, point.y);
         else nd.lineTo(point.x, point.y);
       }
@@ -561,13 +599,19 @@ export function startConstellationScene(
 
   function drawBackground(t: number) {
     bg.clearRect(0, 0, W, H);
-    for (const b of BLOBS) {
+    for (const [i, b] of BLOBS.entries()) {
+      // Themed hue if one was handed over, the scene's own violet otherwise.
+      // Alpha, size, drift and phase are always the scene's — a recolour, not
+      // a different sky.
+      const col = ambientCol
+        ? ambientCol.blobs[i % ambientCol.blobs.length]!
+        : b.col;
       const bx = (b.hx + 0.07 * Math.sin((t / 9000) * b.sp + b.ph)) * W;
       const by = (b.hy + 0.06 * Math.cos((t / 11000) * b.sp + b.ph)) * H;
       const br = b.r * Math.min(W, H) * (1 + 0.08 * Math.sin(t / 7000 + b.ph));
       const g = bg.createRadialGradient(bx, by, 0, bx, by, br);
-      g.addColorStop(0, `rgba(${b.col},${b.a})`);
-      g.addColorStop(1, `rgba(${b.col},0)`);
+      g.addColorStop(0, `rgba(${col},${b.a})`);
+      g.addColorStop(1, `rgba(${col},0)`);
       bg.fillStyle = g;
       bg.fillRect(bx - br, by - br, br * 2, br * 2);
     }
@@ -583,8 +627,8 @@ export function startConstellationScene(
       bg.beginPath();
       bg.arc(d.x, d.y, d.r, 0, Math.PI * 2);
       bg.fillStyle = d.accent
-        ? `rgba(145,132,217,${a * 0.8})`
-        : `rgba(233,233,237,${a * 0.35})`;
+        ? `rgba(${ambientCol ? ambientCol.starAccent : "145,132,217"},${a * 0.8})`
+        : `rgba(${ambientCol ? ambientCol.star : "233,233,237"},${a * 0.35})`;
       bg.fill();
     }
   }
@@ -595,7 +639,7 @@ export function startConstellationScene(
     // keeps the prototype's violet. Working also spins the dashed ring
     // faster — the same "motion is the status" the orbit layout speaks.
     const liveCore = coreStatus !== "idle";
-    const coreCol = liveCore ? COL[coreStatus] : "#b5abfc";
+    const coreCol = liveCore ? statusCol[coreStatus] : "#b5abfc";
     const coreGlow = liveCore ? coreCol : "#9184d9";
     // Lighthouse rays — a slow sweep that says "awake".
     for (let k = 0; k < 6; k++) {
@@ -618,7 +662,12 @@ export function startConstellationScene(
 
     const CR = 44;
     const halo = nd.createRadialGradient(
-      core.x, core.y, CR * 0.6, core.x, core.y, CR * 2.9,
+      core.x,
+      core.y,
+      CR * 0.6,
+      core.x,
+      core.y,
+      CR * 2.9,
     );
     halo.addColorStop(0, "rgba(145,132,217,0.38)");
     halo.addColorStop(0.5, "rgba(145,132,217,0.13)");
@@ -656,7 +705,8 @@ export function startConstellationScene(
 
     nd.fillStyle = "#ffffff";
     // Long workspace names shrink to stay inside the core rather than spill.
-    const coreFontPx = coreLabel.length > 8 ? Math.max(9, 15 - (coreLabel.length - 8)) : 15;
+    const coreFontPx =
+      coreLabel.length > 8 ? Math.max(9, 15 - (coreLabel.length - 8)) : 15;
     nd.font = `700 ${coreFontPx}px Inter, system-ui, sans-serif`;
     nd.textAlign = "center";
     nd.textBaseline = "middle";
@@ -690,7 +740,7 @@ export function startConstellationScene(
           dir,
           speed: 0.55 + Math.random() * 0.75,
           off: (Math.random() - 0.5) * 8,
-          col: COL[node.status],
+          col: statusCol[node.status],
           size: 1.2 + Math.random() * 1.6,
         });
       }
@@ -731,7 +781,7 @@ export function startConstellationScene(
           0,
           Math.PI * 2,
         );
-        fx.fillStyle = COL[node.status];
+        fx.fillStyle = statusCol[node.status];
         fx.globalAlpha = 0.9;
         fx.fill();
       }
@@ -747,7 +797,7 @@ export function startConstellationScene(
       const p = positions[i];
       if (!p) return;
       const cp = curvePoint(i, 0.5);
-      const col = COL[node.status];
+      const col = statusCol[node.status];
       const idle = node.status === "idle";
       const grad = nd.createLinearGradient(core.x, core.y, p.x, p.y);
       grad.addColorStop(0, "rgba(181,171,252,0.55)");
@@ -773,21 +823,29 @@ export function startConstellationScene(
     nodes.forEach((node, i) => {
       const p = positions[i];
       if (!p) return;
-      const col = COL[node.status];
+      const col = statusCol[node.status];
       const idle = node.status === "idle";
       const hovered = hoverIndex === i;
       const isMoon = node.role === "moon";
       const pulse =
         node.status === "waiting" ? 1 + 0.05 * Math.sin(t / 160) : 1;
-      const rad =
-        (isMoon ? (hovered ? 17 : 15) : hovered ? 29 : 26) * pulse;
+      const rad = (isMoon ? (hovered ? 17 : 15) : hovered ? 29 : 26) * pulse;
 
       if (!idle) {
         const breathe = 0.75 + 0.25 * Math.sin(t / 700 + i * 1.7);
         const haloR = rad * (hovered ? 3.4 : 3);
-        const halo = nd.createRadialGradient(p.x, p.y, rad * 0.7, p.x, p.y, haloR);
+        const halo = nd.createRadialGradient(
+          p.x,
+          p.y,
+          rad * 0.7,
+          p.x,
+          p.y,
+          haloR,
+        );
         const hex = (v: number) =>
-          Math.round(v * breathe).toString(16).padStart(2, "0");
+          Math.round(v * breathe)
+            .toString(16)
+            .padStart(2, "0");
         halo.addColorStop(0, col + hex(0x66));
         halo.addColorStop(0.45, col + hex(0x28));
         halo.addColorStop(1, `${col}00`);
@@ -910,7 +968,8 @@ export function startConstellationScene(
     if (onCorePick === undefined) return false;
     const rect = ndCv.getBoundingClientRect();
     return (
-      Math.hypot(clientX - rect.left - core.x, clientY - rect.top - core.y) <= 50
+      Math.hypot(clientX - rect.left - core.x, clientY - rect.top - core.y) <=
+      50
     );
   }
 
@@ -939,6 +998,12 @@ export function startConstellationScene(
   raf = requestAnimationFrame(frame);
 
   return {
+    setAmbientColours(colours) {
+      ambientCol = colours;
+    },
+    setStatusColours(colours) {
+      statusCol = colours === null ? { ...COL } : { ...colours };
+    },
     setNodes(next) {
       // Scratch follows the NODE, not its slot. Keyed by array index, a
       // same-length re-sort — which the overview does on every turn boundary,
@@ -956,7 +1021,9 @@ export function startConstellationScene(
       // together and fight over one point.
       const keptPositions = inherited.map((slot) => {
         const position = slot === undefined ? undefined : positions[slot];
-        return position === undefined ? undefined : { x: position.x, y: position.y };
+        return position === undefined
+          ? undefined
+          : { x: position.x, y: position.y };
       });
       const keptSpawnAcc = inherited.map((slot) =>
         slot === undefined ? 0 : (spawnAcc[slot] ?? 0),

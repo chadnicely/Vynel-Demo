@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { DisplayOrb, DisplayPanel, DisplayStrip } from "@vynel/ui";
+import {
+  DisplayBackdrop,
+  DisplayPanel,
+  DisplayPresence,
+  DisplayStrip,
+  DisplayThemeMenu,
+  resolveDisplayShape,
+  resolveDisplayColour,
+} from "@vynel/ui";
 import type { DisplayPanelRow } from "@vynel/ui";
+import { useUiStore } from "../../stores/ui-store.js";
 import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
 import { useDisplayStatus } from "../../composables/display/use-display-status.js";
 import { TELEMETRY_CAP } from "../../composables/display/display-status-rows.js";
@@ -42,6 +51,14 @@ const voice = useDisplayVoice();
 const { status, telemetry, clock, noteBoardChange } = useDisplayStatus();
 const spikeKey = useSpokenClauseSpike();
 
+// The room's own theme — a palette AND a shape. It rides the shell store so it
+// survives leaving the room, and it is applied as an attribute on this view's
+// root, which is where `display-themes.css` hangs every override. Nothing
+// outside `.display-root` can see it.
+const ui = useUiStore();
+const shape = computed(() => resolveDisplayShape(ui.displayShape));
+const colour = computed(() => resolveDisplayColour(ui.displayColour));
+
 // The board Claude puts things on, named the way the `display_*` tools name
 // it: 'global', or the workspace's own id. A GETTER, so retargeting the tab
 // this room sits in moves the board, the frames, the telemetry and Clear
@@ -69,7 +86,12 @@ async function clearBoard(): Promise<void> {
 }
 
 const orb = computed(() =>
-  displayOrbState(voice.view, status.value.orbEnergy, voice.isMuted, voice.daemonLeg),
+  displayOrbState(
+    voice.view,
+    status.value.orbEnergy,
+    voice.isMuted,
+    voice.daemonLeg,
+  ),
 );
 
 // Five honest states, not two. The first is the one the room does not own: the
@@ -119,7 +141,17 @@ const WIDGET_HINT = "Claude can put reports here";
 </script>
 
 <template>
-  <div class="display-root display-view">
+  <div
+    class="display-root display-view"
+    :data-display-shape="shape.id"
+    :data-display-colour="colour.id"
+    :data-display-chrome="ui.displayPanels ? 'panels' : 'bare'"
+  >
+    <!-- The moving ground, behind everything and inert. Keyed on the theme so
+         a switch restarts every loop together rather than dropping the new
+         palette into the old animation's mid-cycle. -->
+    <DisplayBackdrop :key="colour.id" />
+
     <!-- The room is always a FULL view: this strip IS the window's top row, so
          it drags the window (the title bar is gone) and leaves the shell's
          corner cluster its room on the right. -->
@@ -166,27 +198,64 @@ const WIDGET_HINT = "Claude can put reports here";
       >
         {{ voice.isLive ? "Voice off" : "Voice on" }}
       </button>
+      <!-- The panels switch. A THIRD axis beside shape and colour: every shape
+           reads with the readouts up or down, so this is a toggle rather than
+           two entries per shape in the roster. -->
+      <button
+        type="button"
+        class="strip-pill"
+        :class="{ on: ui.displayPanels }"
+        :aria-pressed="ui.displayPanels"
+        data-testid="display-panels-pill"
+        @click="ui.toggleDisplayPanels()"
+      >
+        Panels
+      </button>
+      <!-- Last in the strip, so the room's own controls keep their order and
+           the panel drops clear of the window's corner cluster. -->
+      <DisplayThemeMenu
+        :shape="shape.id"
+        :colour="colour.id"
+        @update:shape="ui.setDisplayShape($event)"
+        @update:colour="ui.setDisplayColour($event)"
+      />
     </DisplayStrip>
 
     <div class="display-body">
       <aside class="column" data-testid="display-column-left">
         <DisplayPanel title="System" :rows="status.systemRows" />
-        <DisplayPanel title="Telemetry" :rows="telemetry" :lines="TELEMETRY_CAP">
+        <DisplayPanel
+          title="Telemetry"
+          :rows="telemetry"
+          :lines="TELEMETRY_CAP"
+        >
           <p v-if="telemetry.length === 0" class="quiet">nothing yet</p>
         </DisplayPanel>
-        <DisplayWidgetSlot name="left" :widgets="bySlot.left" :hint="WIDGET_HINT" />
+        <DisplayWidgetSlot
+          name="left"
+          :widgets="bySlot.left"
+          :hint="WIDGET_HINT"
+        />
       </aside>
 
       <section class="stage" data-testid="display-stage">
-        <DisplayOrb
+        <!-- Whatever presence THIS theme asked for: the canvas orb, a
+             breathing ring, bars, a dial, or nothing at all. -->
+        <DisplayPresence
           class="orb"
+          :kind="shape.stage"
           :energy="orb.energy"
           :listening="orb.listening"
           :speaking="orb.speaking"
           :spike-key="spikeKey"
+          :palette="colour.orb"
+          :form="shape.form"
           @renderer-failed="hasOrb = false"
         />
-        <p v-if="!hasOrb" class="quiet">Orb unavailable — status panels still live</p>
+        <!-- Only the canvas stage can fail; the others are CSS. -->
+        <p v-if="!hasOrb && shape.stage === 'orb'" class="quiet">
+          Orb unavailable — status panels still live
+        </p>
         <p class="caption">{{ voice.caption }}</p>
         <DisplayWidgetSlot
           class="stage-widgets"
@@ -199,7 +268,11 @@ const WIDGET_HINT = "Claude can put reports here";
       <aside class="column" data-testid="display-column-right">
         <DisplayPanel title="Account" :rows="status.accountRows" />
         <DisplayPanel title="Legend" :rows="LEGEND_ROWS" />
-        <DisplayWidgetSlot name="right" :widgets="bySlot.right" :hint="WIDGET_HINT" />
+        <DisplayWidgetSlot
+          name="right"
+          :widgets="bySlot.right"
+          :hint="WIDGET_HINT"
+        />
       </aside>
     </div>
   </div>
@@ -210,6 +283,14 @@ const WIDGET_HINT = "Claude can put reports here";
    file only lays the room out. */
 .display-view {
   height: 100%;
+  /* FILL the canvas, don't shrink to fit it. The shell lays the canvas out as
+   * a row flex container, so a flex item with no width sizes to its content —
+   * and the room's widest child is a canvas/grid that is itself `100%`, which
+   * contributes nothing to that intrinsic measure. The room therefore settled
+   * at whatever the status panels happened to need and left the rest of the
+   * window empty. It is a full-surface room; it takes the whole surface. */
+  width: 100%;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -221,6 +302,14 @@ const WIDGET_HINT = "Claude can put reports here";
    cluster it floats over the strip's right end. */
 .strip {
   padding-right: var(--chrome-inset-right, 0px);
+  /* Above the body, not merely alongside it. `display-root.css` puts every
+   * direct child on `z-index: 1`, so the strip and the body TIE and the body —
+   * later in the DOM — paints over it. Anything the strip hangs downward (the
+   * theme menu's panel) then lands UNDER the status panels and swallows the
+   * clicks meant for it, however high its own z-index is: that z-index is
+   * trapped inside the strip's own stacking context. The strip is chrome, so
+   * it belongs above the content it labels. */
+  z-index: 2;
 }
 
 .display-body {
@@ -288,7 +377,9 @@ const WIDGET_HINT = "Claude can put reports here";
   text-transform: uppercase;
   color: var(--display-accent-dim, rgba(79, 216, 255, 0.45));
   cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
 }
 
 .strip-pill.on {
