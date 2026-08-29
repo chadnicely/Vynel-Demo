@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto'
 import type { Logger } from 'pino'
 import type { PcmAudio } from '@vynel/voice-engine'
 import { cpal } from '../audio/cpal.js'
-import { findDeviceByName, normalizeDeviceName } from '../audio/device-selection.js'
+import {
+  findAudioDeviceByName,
+  normalizeAudioDeviceName,
+} from '@vynel/contracts/voice/audio-devices'
 import type { SelectedDeviceConfig } from '../audio/device-selection.js'
 import { openCaptureStream, type CaptureStream } from '../audio/capture-stream.js'
 import { openProcessLoopbackCapture, type ProcessLoopbackSource } from '../audio/process-loopback-capture.js'
@@ -84,8 +87,8 @@ interface LiveCall {
 // Inventory identity — an env entry duplicating a discovered pair must not
 // double capacity, and a held pair must stay held across re-discovery.
 function cablePairKey(pair: CallCablePair): string {
-  const ears = pair.inputName !== undefined ? normalizeDeviceName(pair.inputName) : '(loopback)'
-  return `${ears}::${normalizeDeviceName(pair.outputName)}`
+  const ears = pair.inputName !== undefined ? normalizeAudioDeviceName(pair.inputName) : '(loopback)'
+  return `${ears}::${normalizeAudioDeviceName(pair.outputName)}`
 }
 
 // Fallback for PRE-RENAME installs of Vynel's driver, whose endpoints enumerate
@@ -267,7 +270,7 @@ export class CallRegistry {
       // pair's end would cross-bleed audio. Loopback ears has no capture
       // device, so only its Voice end takes a slot.
       const ends = [pair.outputName, ...(pair.inputName !== undefined ? [pair.inputName] : [])].map(
-        normalizeDeviceName,
+        normalizeAudioDeviceName,
       )
       if (ends.some((end) => seenEndNames.has(end))) {
         this.#logger.warn(
@@ -309,7 +312,7 @@ export class CallRegistry {
     name: string,
     devices: ReturnType<typeof cpal.getDevices>,
   ): SelectedDeviceConfig {
-    const device = findDeviceByName(devices, name)
+    const device = findAudioDeviceByName(devices, name)
     if (device === null) {
       throw new CallRegistryError(
         'device-missing',

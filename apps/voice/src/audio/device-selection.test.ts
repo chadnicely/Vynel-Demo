@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import pino from 'pino'
 import type { CpalEnumeratedDevice, CpalStreamConfig } from './cpal.js'
 import {
-  findDeviceByName,
   isVynelVirtualDevice,
   resolveAudioDevices,
   selectDeviceConfig,
@@ -38,24 +37,6 @@ function fakeLogger() {
   const logger = pino({ level: 'silent' })
   return { logger, error: vi.spyOn(logger, 'error') }
 }
-
-describe('findDeviceByName', () => {
-  it('resolves an exact name to its device', () => {
-    expect(findDeviceByName(allDevices, 'CABLE Output (VB-Audio Virtual Cable)')).toBe(cableOutput)
-  })
-
-  it('matches case-insensitively and ignores surrounding whitespace', () => {
-    expect(findDeviceByName(allDevices, '  cable output (vb-audio virtual cable) ')).toBe(cableOutput)
-  })
-
-  it('never substring-matches — a prefix must not bind a longer device name', () => {
-    expect(findDeviceByName(allDevices, 'CABLE Output')).toBeNull()
-  })
-
-  it('returns null when no device carries the name', () => {
-    expect(findDeviceByName(allDevices, 'BlackHole 2ch')).toBeNull()
-  })
-})
 
 describe('resolveAudioDevices', () => {
   it('skips enumeration entirely when no device is requested (default behavior untouched)', () => {

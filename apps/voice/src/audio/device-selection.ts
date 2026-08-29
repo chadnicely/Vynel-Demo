@@ -1,11 +1,15 @@
 import type { Logger } from 'pino'
+import {
+  findAudioDeviceByName,
+  normalizeAudioDeviceName,
+} from '@vynel/contracts/voice/audio-devices'
 import type { CpalDevice, CpalEnumeratedDevice, CpalStreamConfig } from './cpal.js'
 
-// Resolves the user's configured device NAMES (env) to concrete cpal devices.
-// Pure on purpose: it takes the enumerated list as an input and never imports
-// the native binding, so the fallback rules stay unit-testable. Names match
-// exactly (case-insensitive, trimmed) — substring matching could silently bind
-// a different device than the user meant ("CABLE Input" vs "CABLE Input 16ch").
+// Resolves the user's configured device NAMES (Settings → Voice, or env) to
+// concrete cpal devices. Pure on purpose: it takes the enumerated list as an
+// input and never imports the native binding, so the fallback rules stay
+// unit-testable. The name-matching rules are shared with the browser's capture
+// and playback legs — see `@vynel/contracts/voice/audio-devices`.
 
 export interface RequestedAudioDeviceNames {
   inputName?: string | undefined
@@ -15,14 +19,6 @@ export interface RequestedAudioDeviceNames {
 export interface AudioDeviceSelection {
   input?: CpalDevice
   output?: CpalDevice
-}
-
-export function findDeviceByName(
-  devices: readonly CpalEnumeratedDevice[],
-  name: string,
-): CpalEnumeratedDevice | null {
-  const wanted = normalizeDeviceName(name)
-  return devices.find((device) => normalizeDeviceName(device.name) === wanted) ?? null
 }
 
 export function resolveAudioDevices(
@@ -35,12 +31,12 @@ export function resolveAudioDevices(
 
   const devices = listDevices()
   if (requested.inputName !== undefined) {
-    const input = findDeviceByName(devices, requested.inputName)
+    const input = findAudioDeviceByName(devices, requested.inputName)
     if (input === null) logMissingDevice(logger, 'input', requested.inputName, devices)
     else selection.input = input
   }
   if (requested.outputName !== undefined) {
-    const output = findDeviceByName(devices, requested.outputName)
+    const output = findAudioDeviceByName(devices, requested.outputName)
     if (output === null) logMissingDevice(logger, 'output', requested.outputName, devices)
     else selection.output = output
   }
@@ -115,12 +111,8 @@ export function selectDeviceConfig(
 /** One of the call driver's own endpoints ("Vynel Call 1 Microphone (Vynel
  *  Audio)", "Vynel Call 1 Speaker (Vynel Audio)") — never a room microphone. */
 export function isVynelVirtualDevice(name: string): boolean {
-  const normalized = normalizeDeviceName(name)
+  const normalized = normalizeAudioDeviceName(name)
   return normalized.includes('(vynel audio)') || /^vynel call \d+ /.test(normalized)
-}
-
-export function normalizeDeviceName(name: string): string {
-  return name.trim().toLowerCase()
 }
 
 // A configured-but-missing device must not take the daemon down — the cable it
