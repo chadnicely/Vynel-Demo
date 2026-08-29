@@ -12,6 +12,10 @@ import {
   isValidWakeName,
 } from '@vynel/contracts/voice/voice-providers'
 import {
+  AUDIO_DEVICE_NAME_MAX_LENGTH,
+  isValidAudioDeviceName,
+} from '@vynel/contracts/voice/audio-devices'
+import {
   VOICE_TIER_ALLOWED_MODELS,
   VOICE_TIER_THINKING_OPTIONS,
 } from '@vynel/contracts/chat/voice-tier'
@@ -43,6 +47,24 @@ export const SetUserPreferencesRequestSchema = z.object({
       message: `wake name must be one word of ${WAKE_NAME_MIN_LENGTH}-${WAKE_NAME_MAX_LENGTH} letters (or "" to clear)`,
     })
     .optional(),
+  // The exact device NAME as its platform enumerates it. "" clears back to
+  // the system default microphone.
+  voiceInputDeviceName: z
+    .string()
+    .max(AUDIO_DEVICE_NAME_MAX_LENGTH)
+    .refine((value) => value === '' || isValidAudioDeviceName(value), {
+      message: `device name must be 1-${AUDIO_DEVICE_NAME_MAX_LENGTH} characters (or "" to clear)`,
+    })
+    .optional(),
+  // The exact device NAME as its platform enumerates it. "" clears back to
+  // the system default speaker.
+  voiceOutputDeviceName: z
+    .string()
+    .max(AUDIO_DEVICE_NAME_MAX_LENGTH)
+    .refine((value) => value === '' || isValidAudioDeviceName(value), {
+      message: `device name must be 1-${AUDIO_DEVICE_NAME_MAX_LENGTH} characters (or "" to clear)`,
+    })
+    .optional(),
   desktopActionsEnabled: z.boolean().optional(),
   voiceTierModel: z.enum(VOICE_TIER_ALLOWED_MODELS).optional(),
   voiceTierThinking: z.enum(VOICE_TIER_THINKING_OPTIONS).optional(),
@@ -71,6 +93,8 @@ export const UserPreferencesResponseSchema = z.object({
   voiceTtsProviderVoiceId: z.string().nullable(),
   voiceSttSource: z.enum(VOICE_STT_SOURCES),
   voiceWakeName: z.string().nullable(),
+  voiceInputDeviceName: z.string().nullable(),
+  voiceOutputDeviceName: z.string().nullable(),
   desktopActionsEnabled: z.boolean(),
   voiceTierModel: z.enum(VOICE_TIER_ALLOWED_MODELS),
   voiceTierThinking: z.enum(VOICE_TIER_THINKING_OPTIONS),

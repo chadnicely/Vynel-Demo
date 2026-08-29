@@ -49,10 +49,56 @@ describe('getUserPreferences', () => {
         voiceTtsProviderVoiceId: null,
         voiceSttSource: 'web-speech',
         voiceWakeName: null,
+        voiceInputDeviceName: null,
+        voiceOutputDeviceName: null,
         desktopActionsEnabled: false,
         voiceTierModel: 'claude-haiku-4-5',
         voiceTierThinking: 'off',
       })
+    })
+  })
+
+  it('resolves the audio device picks and clears them on the empty string', async () => {
+    await withTestDatabase((db) => {
+      const user = getOrCreateLocalUser(db)
+      upsertPreferenceForUser(
+        db,
+        user.id,
+        'voiceInputDeviceName',
+        JSON.stringify('CABLE Output (VB-Audio Virtual Cable)'),
+      )
+      upsertPreferenceForUser(
+        db,
+        user.id,
+        'voiceOutputDeviceName',
+        JSON.stringify('Speakers (2- USB Audio Device)'),
+      )
+
+      const resolved = getUserPreferences(db, user.id)
+
+      expect(resolved.voiceInputDeviceName).toBe('CABLE Output (VB-Audio Virtual Cable)')
+      expect(resolved.voiceOutputDeviceName).toBe('Speakers (2- USB Audio Device)')
+    })
+  })
+
+  it('reads a cleared device pick back as the system default', async () => {
+    await withTestDatabase((db) => {
+      const user = getOrCreateLocalUser(db)
+      upsertPreferenceForUser(db, user.id, 'voiceInputDeviceName', JSON.stringify(''))
+
+      expect(getUserPreferences(db, user.id).voiceInputDeviceName).toBeNull()
+    })
+  })
+
+  it('refuses a device name that is not a usable name', async () => {
+    await withTestDatabase((db) => {
+      const user = getOrCreateLocalUser(db)
+      // Whitespace-only is not a pick; a stored non-string is corruption.
+      upsertPreferenceForUser(db, user.id, 'voiceOutputDeviceName', JSON.stringify('   '))
+      expect(getUserPreferences(db, user.id).voiceOutputDeviceName).toBeNull()
+
+      upsertPreferenceForUser(db, user.id, 'voiceOutputDeviceName', JSON.stringify(7))
+      expect(getUserPreferences(db, user.id).voiceOutputDeviceName).toBeNull()
     })
   })
 

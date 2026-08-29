@@ -58,6 +58,10 @@ async function transcribeUtterance(
 
 export function createCloudCommandRecognizer(
   endpointSilenceMs = DEFAULT_ENDPOINT_SILENCE_MS,
+  // The browser id of the microphone the user picked (Settings → Voice), read
+  // per capture so a save is heard on the very next utterance. Undefined = the
+  // system default.
+  resolveInputDeviceId?: () => string | undefined,
 ): CommandRecognizer {
   let cancelActive: (() => void) | null = null;
 
@@ -94,11 +98,18 @@ export function createCloudCommandRecognizer(
         void (async () => {
           let acquired: MediaStream;
           try {
+            // `ideal`, never `exact`: a pick whose device has since been
+            // unplugged must fall back to the default microphone rather than
+            // throw OverconstrainedError and leave the assistant deaf.
+            const chosenDeviceId = resolveInputDeviceId?.();
             acquired = await navigator.mediaDevices.getUserMedia({
               audio: {
                 channelCount: 1,
                 echoCancellation: true,
                 noiseSuppression: true,
+                ...(chosenDeviceId === undefined
+                  ? {}
+                  : { deviceId: { ideal: chosenDeviceId } }),
               },
             });
           } catch {

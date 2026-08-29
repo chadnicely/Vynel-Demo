@@ -188,6 +188,11 @@ export interface SpokenAudioPlayerOptions {
    *  barge-in rejects `play()` with AbortError) or a broken blob must not
    *  re-speak words that partially sounded. */
   onPlaybackRefused?: (text: string) => void;
+  /** The browser id of the speaker the user picked (Settings → Voice), read
+   *  per sentence so a save reaches the very next line spoken. Undefined =
+   *  the system default. A pick the machine no longer has is IGNORED rather
+   *  than fatal: an unplugged headset must not silence the assistant. */
+  resolveOutputDeviceId?: () => string | undefined;
 }
 
 export function createSpokenAudioPlayer(
@@ -227,6 +232,22 @@ export function createSpokenAudioPlayer(
     }
   }
 
+  // `setSinkId` is Chromium-only and rejects on a stale id. Both cases fall
+  // back to the default speaker, which is what the user hears today anyway.
+  async function routeToChosenSpeaker(audio: HTMLAudioElement): Promise<void> {
+    const deviceId = options.resolveOutputDeviceId?.();
+    if (deviceId === undefined) return;
+    const sinkable = audio as HTMLAudioElement & {
+      setSinkId?: (id: string) => Promise<void>;
+    };
+    if (typeof sinkable.setSinkId !== "function") return;
+    try {
+      await sinkable.setSinkId(deviceId);
+    } catch {
+      // Gone or refused — the default speaker still plays the line.
+    }
+  }
+
   async function playWav(wav: Blob, text: string): Promise<void> {
     const url = URL.createObjectURL(wav);
     try {
@@ -234,6 +255,7 @@ export function createSpokenAudioPlayer(
         resolvePlaying = resolve;
         const audio = new Audio(url);
         playing = audio;
+        void routeToChosenSpeaker(audio);
         // 'playing' is the first moment sound is actually leaving the
         // machine — the trace's last mark, and the one the user feels.
         audio.onplaying = () => voiceLatencyTracer.markFirstAudible();

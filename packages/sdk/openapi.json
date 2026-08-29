@@ -33622,6 +33622,18 @@
                         "null"
                       ]
                     },
+                    "voiceInputDeviceName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "voiceOutputDeviceName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "desktopActionsEnabled": {
                       "type": "boolean"
                     },
@@ -33654,6 +33666,8 @@
                     "voiceTtsProviderVoiceId",
                     "voiceSttSource",
                     "voiceWakeName",
+                    "voiceInputDeviceName",
+                    "voiceOutputDeviceName",
                     "desktopActionsEnabled",
                     "voiceTierModel",
                     "voiceTierThinking"
@@ -33751,6 +33765,18 @@
                         "null"
                       ]
                     },
+                    "voiceInputDeviceName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "voiceOutputDeviceName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "desktopActionsEnabled": {
                       "type": "boolean"
                     },
@@ -33783,6 +33809,8 @@
                     "voiceTtsProviderVoiceId",
                     "voiceSttSource",
                     "voiceWakeName",
+                    "voiceInputDeviceName",
+                    "voiceOutputDeviceName",
                     "desktopActionsEnabled",
                     "voiceTierModel",
                     "voiceTierThinking"
@@ -33871,6 +33899,14 @@
                   "voiceWakeName": {
                     "type": "string",
                     "maxLength": 24
+                  },
+                  "voiceInputDeviceName": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "voiceOutputDeviceName": {
+                    "type": "string",
+                    "maxLength": 200
                   },
                   "desktopActionsEnabled": {
                     "type": "boolean"

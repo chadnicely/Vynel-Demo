@@ -14,6 +14,7 @@ import {
   type LocalSttModelId,
   type LocalTtsModelId,
 } from '@vynel/contracts/models/local-model-catalog'
+import { isValidAudioDeviceName } from '@vynel/contracts/voice/audio-devices'
 import {
   DEFAULT_VOICE_STT_SOURCE,
   DEFAULT_VOICE_TTS_SOURCE,
@@ -52,6 +53,13 @@ export interface ResolvedUserPreferences {
   // The custom wake name (2026-08-28): "hey <name>" wakes the daemon BESIDE
   // the built-in names. Null = built-ins only.
   voiceWakeName: string | null
+  // The DEVICE picks (Settings → Voice, 2026-08-28): WHICH microphone hears
+  // and WHICH speaker answers. Stored as device NAMES, never ids — a browser
+  // deviceId is origin-scoped and rotates, a cpal id is opaque, and only a
+  // name re-resolves on a second machine. Null = the system default, which is
+  // also where every consumer falls back when the named device is absent.
+  voiceInputDeviceName: string | null
+  voiceOutputDeviceName: string | null
   // Settings → Desktop control (2026-08-23): may Vynel CLICK and TYPE on this
   // desktop? Looking (screenshots, window lists) is never gated. Fail-closed
   // default; `VYNEL_DESKTOP_ACT_ENABLED` seeds it only while the user has
@@ -79,6 +87,8 @@ export const DEFAULT_PREFERENCES: ResolvedUserPreferences = {
   voiceTtsProviderVoiceId: null,
   voiceSttSource: DEFAULT_VOICE_STT_SOURCE,
   voiceWakeName: null,
+  voiceInputDeviceName: null,
+  voiceOutputDeviceName: null,
   desktopActionsEnabled: false,
   voiceTierModel: VOICE_TIER_MODEL,
   voiceTierThinking: DEFAULT_VOICE_TIER_THINKING,
@@ -150,6 +160,15 @@ export function getUserPreferences(db: Database, userId: string): ResolvedUserPr
         // else must satisfy the shared predicate the daemon matches with.
         if (parsed === '') resolved.voiceWakeName = null
         else if (isValidWakeName(parsed)) resolved.voiceWakeName = parsed
+        break
+      case 'voiceInputDeviceName':
+        // The empty string is the CLEAR (back to the system default).
+        if (parsed === '') resolved.voiceInputDeviceName = null
+        else if (isValidAudioDeviceName(parsed)) resolved.voiceInputDeviceName = parsed
+        break
+      case 'voiceOutputDeviceName':
+        if (parsed === '') resolved.voiceOutputDeviceName = null
+        else if (isValidAudioDeviceName(parsed)) resolved.voiceOutputDeviceName = parsed
         break
       case 'desktopActionsEnabled':
         // The fail-closed `false` this falls back to is the ROW default — what

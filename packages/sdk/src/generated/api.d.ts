@@ -17575,6 +17575,8 @@ export interface operations {
                         /** @enum {string} */
                         voiceSttSource: "web-speech" | "local" | "elevenlabs" | "google";
                         voiceWakeName: string | null;
+                        voiceInputDeviceName: string | null;
+                        voiceOutputDeviceName: string | null;
                         desktopActionsEnabled: boolean;
                         /** @enum {string} */
                         voiceTierModel: "claude-haiku-4-5" | "claude-sonnet-5";
@@ -17611,6 +17613,8 @@ export interface operations {
                     /** @enum {string} */
                     voiceSttSource?: "web-speech" | "local" | "elevenlabs" | "google";
                     voiceWakeName?: string;
+                    voiceInputDeviceName?: string;
+                    voiceOutputDeviceName?: string;
                     desktopActionsEnabled?: boolean;
                     /** @enum {string} */
                     voiceTierModel?: "claude-haiku-4-5" | "claude-sonnet-5";
@@ -17643,6 +17647,8 @@ export interface operations {
                         /** @enum {string} */
                         voiceSttSource: "web-speech" | "local" | "elevenlabs" | "google";
                         voiceWakeName: string | null;
+                        voiceInputDeviceName: string | null;
+                        voiceOutputDeviceName: string | null;
                         desktopActionsEnabled: boolean;
                         /** @enum {string} */
                         voiceTierModel: "claude-haiku-4-5" | "claude-sonnet-5";
