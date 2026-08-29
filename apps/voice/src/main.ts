@@ -32,6 +32,8 @@ import { createCallConversationHost } from './call/call-conversation-host.js'
 import { createCallSessionClient } from './call/call-session-client.js'
 import { serializeAsync } from './call/serialize-async.js'
 import { startOverlayChannel } from './overlay/overlay-channel.js'
+import { createDevicesRoute } from './audio/devices-route.js'
+import { cpal } from './audio/cpal.js'
 import { createDisplayDockWindow } from './overlay/display-dock-window.js'
 import { createWakeHandoff } from './overlay/wake-handoff.js'
 import { startNativeLeg, type NativeLeg } from './native-leg.js'
@@ -237,7 +239,12 @@ async function main(): Promise<void> {
     {
       wakeSurface: dockEnabled ? 'dock' : 'app',
       turnWatchdogMs: env.VYNEL_VOICE_TURN_WATCHDOG_MS,
-      routes: [{ path: '/calls', app: createCallEndpoints(callRegistry, callConversations, logger) }],
+      routes: [
+        { path: '/calls', app: createCallEndpoints(callRegistry, callConversations, logger) },
+        // The picker in Settings → Voice asks THIS side what it can bind — the
+        // browser's own enumeration is a different view of the same machine.
+        { path: '/devices', app: createDevicesRoute({ listDevices: () => cpal.getDevices(), logger }) },
+      ],
     },
   )
   overlay.whenListening.catch((error: unknown) => {

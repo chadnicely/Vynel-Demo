@@ -15,6 +15,7 @@ import {
 } from "./speech-recognition.js";
 import { createCloudCommandRecognizer } from "./cloud-command-recognizer.js";
 import { useUserPreferences } from "../users/use-user-preferences.js";
+import { createInputDeviceResolver } from "./input-device-binding.js";
 import { createSpokenAudioPlayer } from "./spoken-audio-player.js";
 import { adaptChatTurnStreamToVoice } from "./voice-turn-adapter.js";
 import { voiceLatencyTracer } from "./voice-latency-trace.js";
@@ -141,8 +142,14 @@ export function useVoiceSession(options: {
       return;
     }
 
+    // The user's microphone pick, resolved from its saved NAME to this
+    // browser's id at capture time. Web Speech takes no device argument, so
+    // only the cloud leg can honour it — the Settings row says so out loud.
+    const resolveInputDeviceId = createInputDeviceResolver(
+      () => preferencesQuery.data.value?.voiceInputDeviceName ?? null,
+    );
     const recognizer = usesCloudHearing.value
-      ? createCloudCommandRecognizer()
+      ? createCloudCommandRecognizer(undefined, resolveInputDeviceId)
       : createCommandRecognizer();
     const started = startVoiceCommandSession(
       {
