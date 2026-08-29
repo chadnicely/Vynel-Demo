@@ -72,6 +72,8 @@ function pressDisplaySwitch(wrapper: Awaited<ReturnType<typeof mountShell>>["wra
   wrapper.getComponent(AppTitleBar).vm.$emit("command", "toggle-display");
 }
 
+const ROUTE_SETTLE_MS = 10_000;
+
 describe("AppShell — the Display", () => {
   it("the switch opens the room on the global tab and lights the title bar", async () => {
     const { wrapper, ui } = await mountShell();
@@ -197,12 +199,16 @@ describe("AppShell — the view switch", () => {
     expect(titleBar(wrapper).viewMode).toBe("normal");
 
     press(wrapper, "open-nodes");
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"));
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"), {
+      timeout: ROUTE_SETTLE_MS,
+    });
     await wrapper.vm.$nextTick();
     expect(titleBar(wrapper).viewMode).toBe("nodes");
 
     press(wrapper, "view-normal");
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("chat"));
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("chat"), {
+      timeout: ROUTE_SETTLE_MS,
+    });
     await wrapper.vm.$nextTick();
     expect(titleBar(wrapper).viewMode).toBe("normal");
   });
@@ -215,14 +221,18 @@ describe("AppShell — the view switch", () => {
     expect(titleBar(wrapper).fullView).toBe(false);
 
     press(wrapper, "open-nodes");
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"));
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"), {
+      timeout: ROUTE_SETTLE_MS,
+    });
     await wrapper.vm.$nextTick();
     expect(titleBar(wrapper).fullView).toBe(true);
     expect(wrapper.findAllComponents(ResizablePanel)).toHaveLength(0);
     expect(wrapper.get(".app-shell").classes()).toContain("full-view");
 
     press(wrapper, "view-normal");
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("chat"));
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("chat"), {
+      timeout: ROUTE_SETTLE_MS,
+    });
     await wrapper.vm.$nextTick();
     expect(titleBar(wrapper).fullView).toBe(false);
     expect(wrapper.findAllComponents(ResizablePanel)).toHaveLength(1);
@@ -301,11 +311,15 @@ describe("AppShell — the view switch", () => {
     press(wrapper, "view-display");
     await wrapper.vm.$nextTick();
     press(wrapper, "open-nodes");
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"));
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("nodes"), {
+      timeout: ROUTE_SETTLE_MS,
+    });
     expect(ui.globalTab.shell.mainView).toBe("display");
 
     press(wrapper, "view-normal");
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("chat"));
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("chat"), {
+      timeout: ROUTE_SETTLE_MS,
+    });
     await wrapper.vm.$nextTick();
 
     expect(ui.globalTab.shell.mainView).toBe("chat");

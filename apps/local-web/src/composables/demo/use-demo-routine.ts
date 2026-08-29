@@ -63,7 +63,12 @@ export function useDemoRoutine(options: {
         ui.activateTab(GLOBAL_TAB_ID);
         options.showDisplay();
         await beat(ROOM_SETTLE_MS);
-        await demo.playRecordedLine(pickDemoGreeting(Math.random));
+        // The take's OWN greeting, drawn when it was written — so the bank
+        // records one line rather than the whole sixteen-line pool. A take
+        // from before that carries none and still draws here.
+        await demo.playRecordedLine(
+          demo.activeScript?.greeting ?? pickDemoGreeting(Math.random),
+        );
         if (!demo.isRoutineRunning) return;
         await beat(CUT_BEAT_MS);
       }
@@ -90,7 +95,9 @@ export function useDemoRoutine(options: {
             // THE HANDOFF (Chad, 2026-08-28): the orb announces the dev
             // updates, THEN the film cuts. Spoken here rather than written
             // into the script, so the card shows only the content he reads.
-            const intro = demo.pickIntroLine();
+            // The take's OWN handoff, settled when it was written — a draw
+            // here would need every intro sample pre-recorded.
+            const intro = demo.activeScript?.intro ?? demo.pickIntroLine();
             if (intro !== null) await demo.playRecordedLine(intro);
             if (!demo.isRoutineRunning) return;
             await router.push({ name: "nodes" });
@@ -115,7 +122,7 @@ export function useDemoRoutine(options: {
       // the follow-up question, so signing off there would end the video
       // before the products were ever shown.
       if (demo.isRoutineRunning && part !== "opening") {
-        const conclusion = demo.pickConclusionLine();
+        const conclusion = demo.activeScript?.conclusion ?? demo.pickConclusionLine();
         if (conclusion !== null) await demo.playRecordedLine(conclusion);
       }
       // Where the next spoken trigger picks up.

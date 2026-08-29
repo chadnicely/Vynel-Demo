@@ -594,3 +594,84 @@ describe("demo-store routine scene", () => {
     expect(demo.isArmed).toBe(false);
   });
 });
+
+describe("a filmed take", () => {
+  it("is stamped complete, and can be put back in the rotation", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    const take = demo.scripts[0]!;
+
+    demo.markComplete(take.id);
+    expect(demo.scripts.find((s) => s.id === take.id)!.completedAt).toBeTypeOf("number");
+
+    // Called finished too early — it has to come back.
+    demo.unmarkComplete(take.id);
+    expect(demo.scripts.find((s) => s.id === take.id)!.completedAt).toBeUndefined();
+  });
+
+  it("keeps the take in the list — completing is not deleting", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    const before = demo.scripts.length;
+
+    demo.markComplete(demo.scripts[0]!.id);
+
+    expect(demo.scripts).toHaveLength(before);
+  });
+});
+
+describe("cancelling a recording pass", () => {
+  it("is not a failure — it must never claim the voice is missing", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    demo.approveAll();
+
+    demo.cancelPrepare();
+
+    // "failed" paints "No voice installed yet" on a machine with a good voice.
+    expect(demo.readiness).not.toBe("failed");
+    expect(demo.readiness).toBe("idle");
+  });
+
+  it("puts unrecorded takes back to Pending — nothing is left mid-record", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    demo.approveAll();
+
+    demo.cancelPrepare();
+
+    // Left approved-but-unrecorded, every card would still read "Recording the
+    // voice…" with a Cancel button and nothing running behind it.
+    for (const script of demo.scripts) {
+      expect(demo.scriptStage(script)).toBe("unread");
+    }
+  });
+});
+
+describe("clip numbers", () => {
+  it("counts up and never reuses — no two clips on disk may share one", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    const [first, second] = demo.scripts;
+
+    expect(demo.assignClipNumber(first!.id)).toBe(1);
+    expect(demo.assignClipNumber(second!.id)).toBe(2);
+    // Refilming the SAME take is a new clip on camera — a new number.
+    expect(demo.assignClipNumber(first!.id)).toBe(3);
+    expect(demo.scripts.find((s) => s.id === first!.id)!.clipNumber).toBe(3);
+  });
+
+  it("survives a reload — the counter is not per-session", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    demo.assignClipNumber(demo.scripts[0]!.id);
+
+    expect(localStorage.getItem("vynel.demo-clip-counter")).toBe("1");
+  });
+});

@@ -23,7 +23,19 @@ import { useCustomizeStore } from "../stores/customize-store.js";
 import { useDemoStore } from "../stores/demo-store.js";
 import { GLOBAL_TAB_ID, useUiStore } from "../stores/ui-store.js";
 import { demoFleetNodes } from "../demo/demo-fleet.js";
-import { DisplayBackdrop, resolveDisplayColour } from "@vynel/ui";
+
+// THE BOARD, on this screen too (Chad, 2026-08-29): the nodes half of a take
+// speaks each product's update, and without the readout the audience had
+// nothing to note down — the "quiz submissions" line changed no pixels here.
+// Same rows as the Display's panel, CENTRED: this screen has no side columns
+// to hang panels off, and centre is where he asked for them.
+
+import {
+  DisplayBackdrop,
+  DisplayPanel,
+  resolveDisplayColour,
+  type DisplayPanelRow,
+} from "@vynel/ui";
 import NodesFleetBar from "../components/nodes/NodesFleetBar.vue";
 import NodesGrid from "../components/nodes/NodesGrid.vue";
 import NodesRace from "../components/nodes/NodesRace.vue";
@@ -236,6 +248,17 @@ const level = computed(() => activeNodeLevel(stack.value, registry));
 // is doing (demo-store, Chad 2026-08-28). The routine only ever plays the
 // fleet level, so a drilled stack still shows its own dots.
 const demo = useDemoStore();
+
+const boardRows = computed<DisplayPanelRow[]>(() =>
+  demo.routineBoard.map((row) => ({
+    label: row.label,
+    value: row.value,
+    tone: row.live ? "live" : "default",
+  })),
+);
+const liveHighlight = computed(
+  () => demo.routineBoard.find((row) => row.live) ?? null,
+);
 const isRoutineDriving = computed(
   () => demo.routineNodes !== null && stack.value.length === 0,
 );
@@ -457,6 +480,22 @@ onBeforeUnmount(() => {
            SceneNode; rendering it is Kafi's visual pass (D7). -->
       <p class="hint">click a node to open it</p>
     </template>
+
+    <!-- On camera only (the board empties with the take): the history top
+         centre, the number being SAID bottom centre — both clear of the
+         constellation's core. -->
+    <div v-if="demo.routineBoard.length > 0" class="routine-board">
+      <DisplayPanel title="On the board" :rows="boardRows" data-testid="nodes-board" />
+    </div>
+    <div
+      v-if="liveHighlight !== null"
+      :key="liveHighlight.label + liveHighlight.value"
+      class="nodes-highlight"
+      data-testid="nodes-highlight"
+    >
+      <span class="hl-value">{{ liveHighlight.value }}</span>
+      <span class="hl-label">{{ liveHighlight.label }}</span>
+    </div>
   </div>
 </template>
 
@@ -568,5 +607,56 @@ onBeforeUnmount(() => {
   letter-spacing: 0.09em;
   text-transform: uppercase;
   pointer-events: none;
+}
+
+/* The take's readout, centred (Chad, 2026-08-29). z above the scene canvas. */
+.routine-board {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  width: min(430px, 84vw);
+}
+
+.nodes-highlight {
+  position: absolute;
+  bottom: 92px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  animation: nodes-hl-land 0.5s ease-out;
+}
+
+.nodes-highlight .hl-value {
+  font-size: clamp(30px, 4.5vw, 56px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--display-accent, #4fd8ff);
+  text-shadow: 0 0 22px var(--display-accent-faint, rgba(79, 216, 255, 0.4));
+}
+
+.nodes-highlight .hl-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--display-text, #cdf3ff);
+}
+
+@keyframes nodes-hl-land {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
 }
 </style>

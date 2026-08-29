@@ -9,6 +9,34 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Film day, end to end.** The Demo Videos screen became a working film set. A take now opens
+  in its own browser tab, so the queue stays where you left it; it opens on a production slate —
+  the clip number (boxed, in the accent, unmistakably not the countdown), a 3-second countdown,
+  then black. Armed, black holds until you speak; the wake phrase brings the room alive. The clip
+  number lands on the take's card too, so footage on disk matches its take. A played take stays
+  in the queue — dimmed, stamped with the date and time it ran, wearing Replay and Mark Complete —
+  and completed takes get their own tab. Recorded voices now survive a page reload (they were
+  held in memory and every refresh silently threw the reel away), approvals survive with them,
+  and cancelling a recording pass reads as a cancel rather than painting "no voice installed"
+  over a machine with a perfectly good voice.
+
+- **The screen says the numbers out loud.** While a take plays, the panels come on whatever the
+  toggle says, and a board follows the voice: each spoken line's headline — "Sales · $2,300",
+  "Quiz submissions · 225" — lands big in the centre of the room as it is said, with the running
+  history in one panel beside it. The nodes half gets the same treatment, centred over the
+  constellation, so a product's figure hits the screen as its node lights. Off camera every
+  panel goes back exactly as it was.
+
+- **The film screen runs itself.** Ready / Waiting / Completed are the tabs; Software, Sample
+  Clips and Rules folded into a Defaults popup beside Create scripts. The header names the voice
+  you're speaking with — click it and switch between ElevenLabs, Kokoro and Piper right there;
+  a recording pass says which voice it is recording with and how far along it is, and the take
+  being recorded offers Cancel in place of Approve. Preview finally speaks in the voice you
+  actually picked (it always played the local model, so auditioning cloud voices played the
+  same voice every time), and a failed preview says why instead of going silent. Kokoro also
+  got roughly three times faster: its synthesis threads were hard-coded to four and now scale
+  to the machine.
+
 - **Choose your microphone and speaker.** Settings → Voice now has a Devices group: pick which
   microphone Vynel hears you through and which speaker it answers from, with a Test button that
   speaks one line through the speaker you picked so you can confirm it by ear. Your pick is saved

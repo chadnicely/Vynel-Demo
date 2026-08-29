@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import {
   DisplayBackdrop,
   DisplayPanel,
@@ -91,6 +91,36 @@ async function clearBoard(): Promise<void> {
 // uses: the assistant IS talking, and the room must burn and mouth for it
 // (Chad, 2026-08-28: "no wave form"). Off-camera this reads exactly as before.
 const demo = useDemoStore();
+// R = replay the take (Chad, 2026-08-29). Filming means running the same take
+// over and over, and reaching for a button between runs is a hand in shot.
+// Bare key, no modifier: the room has no text fields, and the guard below keeps
+// it off any that appear (a dialog's input, the palette).
+function replayTake(): void {
+  const script = demo.activeScript;
+  if (script === null || demo.isRoutineRunning) return;
+  demo.requestRoutine(script.id);
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
+  );
+}
+
+function onKeyDown(event: KeyboardEvent): void {
+  if (event.key !== "r" && event.key !== "R") return;
+  // Modifier combinations belong to the browser and the app (Ctrl+R reloads).
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  if (isTypingTarget(event.target)) return;
+  event.preventDefault();
+  replayTake();
+}
+
+onMounted(() => window.addEventListener("keydown", onKeyDown));
+onBeforeUnmount(() => window.removeEventListener("keydown", onKeyDown));
+
 const orb = computed(() =>
   displayOrbState(voice.view, status.value.orbEnergy, voice.isMuted, {
     state: demo.isRoutineRunning ? "speaking" : voice.daemonLeg.state,
@@ -129,6 +159,29 @@ function toggleVoice(): void {
 
 // The status vocabulary, spelled out once where the user can read it — the
 // panels' tones mean nothing on their own.
+// On camera the panels are ON whatever the user's toggle says (Chad,
+// 2026-08-29): the board below is the audience's copy of the numbers being
+// spoken, and a bare room has nowhere to put it. Off camera the pick stands.
+const panelsOn = computed(
+  () => ui.displayPanels || demo.isRoutineRunning || demo.routineBoard.length > 0,
+);
+
+/** The line being said RIGHT NOW, for the centre of the room — the HUD sits
+ *  in the middle, always (Chad, 2026-08-29); the side panel keeps the history. */
+const liveHighlight = computed(
+  () => demo.routineBoard.find((row) => row.live) ?? null,
+);
+
+/** The spoken headlines, as panel rows — the row being said right now burns
+ *  as 'live'; the rest settle so the newest is the one the eye finds. */
+const boardRows = computed<DisplayPanelRow[]>(() =>
+  demo.routineBoard.map((row) => ({
+    label: row.label,
+    value: row.value,
+    tone: row.live ? "live" : "default",
+  })),
+);
+
 const LEGEND_ROWS: DisplayPanelRow[] = [
   { label: "Needs you", value: "waiting on an answer", tone: "attention" },
   { label: "Working", value: "running right now", tone: "live" },
@@ -149,12 +202,28 @@ const WIDGET_HINT = "Claude can put reports here";
     class="display-root display-view"
     :data-display-shape="shape.id"
     :data-display-colour="colour.id"
-    :data-display-chrome="ui.displayPanels ? 'panels' : 'bare'"
+    :data-display-chrome="panelsOn ? 'panels' : 'bare'"
   >
     <!-- The moving ground, behind everything and inert. Keyed on the theme so
          a switch restarts every loop together rather than dropping the new
          palette into the old animation's mid-cycle. -->
     <DisplayBackdrop :key="colour.id" />
+
+    <!-- REPLAY (Chad, 2026-08-29): re-run the take without leaving the room.
+         Rehearsing means watching it again and again, and going back to the
+         admin screen for every run broke the thing being rehearsed. Only while
+         a take is loaded and NOT running, so it can never interrupt a take
+         mid-flight — and never on a real conversation, which has no take. -->
+    <button
+      v-if="demo.activeScript !== null && !demo.isRoutineRunning"
+      type="button"
+      class="demo-replay"
+      title="Play this take again (press R)"
+      data-testid="demo-replay"
+      @click="replayTake()"
+    >
+      ↻ Replay <span class="key">R</span>
+    </button>
 
     <!-- The room is always a FULL view: this strip IS the window's top row, so
          it drags the window (the title bar is gone) and leaves the shell's
@@ -261,6 +330,15 @@ const WIDGET_HINT = "Claude can put reports here";
           Orb unavailable — status panels still live
         </p>
         <p class="caption">{{ voice.caption }}</p>
+        <div
+          v-if="liveHighlight !== null"
+          :key="liveHighlight.label + liveHighlight.value"
+          class="stage-highlight"
+          data-testid="stage-highlight"
+        >
+          <span class="hl-value">{{ liveHighlight.value }}</span>
+          <span class="hl-label">{{ liveHighlight.label }}</span>
+        </div>
         <DisplayWidgetSlot
           class="stage-widgets"
           name="stage"
@@ -270,8 +348,16 @@ const WIDGET_HINT = "Claude can put reports here";
       </section>
 
       <aside class="column" data-testid="display-column-right">
-        <DisplayPanel title="Account" :rows="status.accountRows" />
-        <DisplayPanel title="Legend" :rows="LEGEND_ROWS" />
+        <DisplayPanel
+          v-if="demo.routineBoard.length > 0"
+          title="On the board"
+          :rows="boardRows"
+          data-testid="display-board"
+        />
+        <template v-if="demo.routineBoard.length === 0">
+          <DisplayPanel title="Account" :rows="status.accountRows" />
+          <DisplayPanel title="Legend" :rows="LEGEND_ROWS" />
+        </template>
         <DisplayWidgetSlot
           name="right"
           :widgets="bySlot.right"
@@ -283,6 +369,36 @@ const WIDGET_HINT = "Claude can put reports here";
 </template>
 
 <style scoped>
+.demo-replay {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 6;
+  padding: 6px 12px;
+  border: 1px solid var(--display-accent-dim);
+  border-radius: 4px;
+  background: rgba(2, 19, 43, 0.72);
+  color: var(--display-accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: default;
+  opacity: 0.5;
+  transition: opacity 140ms ease;
+}
+
+.demo-replay:hover {
+  opacity: 1;
+}
+
+.demo-replay .key {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 10px;
+  opacity: 0.8;
+}
+
 /* The palette and the ground come from `.display-root` (@vynel/ui) — this
    file only lays the room out. */
 .display-view {
@@ -355,6 +471,45 @@ const WIDGET_HINT = "Claude can put reports here";
   font-size: 12px;
   line-height: 1.55;
   color: var(--display-text, #cdf3ff);
+}
+
+/* The number being spoken, centre of the room — readable from the back
+   (Chad, 2026-08-29: "the hud should always be in the middle"). Re-keyed per
+   line, so each figure lands with its own pop. */
+.stage-highlight {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  animation: hl-land 0.5s ease-out;
+}
+
+.hl-value {
+  font-size: clamp(34px, 5vw, 64px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--display-accent, #4fd8ff);
+  text-shadow: 0 0 22px var(--display-accent-faint, rgba(79, 216, 255, 0.4));
+}
+
+.hl-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--display-text, #cdf3ff);
+}
+
+@keyframes hl-land {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .quiet {

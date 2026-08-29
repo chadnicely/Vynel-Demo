@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import DemoVoicePicker from "../components/demo/DemoVoicePicker.vue";
+import { useCurrentVoiceLabel } from "../composables/voice/use-current-voice-label.js";
 import {
   DEMO_QUEUE_TARGET,
   useDemoStore,
@@ -17,7 +19,8 @@ import { rollTakeMetrics } from "../demo/demo-rules.js";
 // (Chad, 2026-08-28). Everything is client-only (demo-store); nothing reaches
 // the database.
 
-type FilmTab = "software" | "samples" | "rules" | "scripts";
+type SettingsTab = "software" | "samples" | "rules";
+type QueueTab = "ready" | "waiting" | "completed";
 
 // The film kit is a full view with no menu, so the one setting it depends on —
 // the voice models — has to be reachable from here (Chad, 2026-08-28). The
@@ -25,7 +28,8 @@ type FilmTab = "software" | "samples" | "rules" | "scripts";
 const emit = defineEmits<{ openVoiceSettings: [] }>();
 
 const demo = useDemoStore();
-const tab = ref<FilmTab>("scripts");
+const settingsOpen = ref(false);
+const settingsTab = ref<SettingsTab>("software");
 const softwareDraft = ref("");
 const categoryDraft = ref("");
 
@@ -36,34 +40,48 @@ const categoryDraft = ref("");
  *  until Approve is pressed, then Recording the voice. A recorded take says
  *  nothing at all — being in the Ready to film tab is the statement. */
 function stageLabel(script: DemoScript): string {
-  return demo.scriptStage(script) === "unread" ? "Pending" : "Recording the voice…";
+  const stage = demo.scriptStage(script);
+  if (stage === "unread") return "Pending";
+  if (stage === "recorded") return "Ready";
+  const { done, total } = demo.prepareProgress;
+  const progress = total > 0 ? ` (${done}/${total} lines complete)` : "";
+  return `Recording the voice with ${voiceLabel.value}${progress}`;
 }
 
-// Scripts first: it is the screen Chad works from on film day, and the other
-// three are the setup behind it (2026-08-28).
-const TABS: readonly { id: FilmTab; label: string }[] = [
-  { id: "scripts", label: "Scripts" },
+// The setup screens, inside the popup. "Sample Clips" is Chad's name for the
+// line bank (2026-08-29; it was "Update Samples").
+const SETTINGS_TABS: readonly { id: SettingsTab; label: string }[] = [
   { id: "software", label: "Software" },
-  { id: "samples", label: "Update Samples" },
+  { id: "samples", label: "Sample Clips" },
   { id: "rules", label: "Rules" },
 ];
 
 /** Which half of the queue is on show: the takes that can be filmed, or the
  *  ones still waiting on a read. Split so a shooting day is not spent
  *  scrolling past nine unapproved cards. */
-const queueView = ref<"ready" | "waiting">("ready");
+const queueView = ref<QueueTab>("ready");
 
 /** Ready = RECORDED. Approved-but-still-recording belongs with the waiting,
  *  because it cannot be filmed yet (Chad: green only when a demo can play). */
 const readyScripts = computed(() =>
-  demo.scripts.filter((script) => demo.scriptStage(script) === "recorded"),
+  demo.scripts.filter(
+    (script) =>
+      demo.scriptStage(script) === "recorded" && script.completedAt === undefined,
+  ),
+);
+/** The keepers — filmed and called done. Their own tab, so Ready stays the
+ *  work left (Chad, 2026-08-29). */
+const completedScripts = computed(() =>
+  demo.scripts.filter((script) => script.completedAt !== undefined),
 );
 const waitingScripts = computed(() =>
   demo.scripts.filter((script) => demo.scriptStage(script) !== "recorded"),
 );
-const shownScripts = computed(() =>
-  queueView.value === "ready" ? readyScripts.value : waitingScripts.value,
-);
+const shownScripts = computed(() => {
+  if (queueView.value === "ready") return readyScripts.value;
+  if (queueView.value === "completed") return completedScripts.value;
+  return waitingScripts.value;
+});
 
 /** The card whose ⋯ menu is open; only ever one. */
 const openMenu = ref<string | null>(null);
@@ -154,10 +172,33 @@ function categoryPreview(sample: string | undefined): string | null {
   return fillHudSample(sample, rollTakeMetrics(demo.metricRules, Math.random));
 }
 
+const voiceLabel = useCurrentVoiceLabel();
+
+/** Film a take in a NEW BROWSER TAB (Chad, 2026-08-29: "make it a new tab so
+ *  you can get back to the scripts"). Playing in place took the whole window —
+ *  the room goes full-screen — so every run meant navigating back to the queue
+ *  before the next one. The takes and their recorded audio live in
+ *  localStorage + IndexedDB, which the new tab shares, so it can film without
+ *  copying anything across. */
+function filmInNewTab(scriptId: string): void {
+  window.open(`${location.origin}/?play=${encodeURIComponent(scriptId)}`, "_blank");
+}
+
+/** When a take last ran — always date AND time (Chad, 2026-08-29): a reel is
+ *  filmed across days, and "2:00 PM" alone cannot say which day's footage the
+ *  good one is. */
+function playedLabel(at: number): string {
+  const when = new Date(at);
+  const time = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return `${when.toLocaleDateString()} ${time}`;
+}
+
 const readinessLabel = computed(() => {
   switch (demo.readiness) {
     case "preparing":
-      return `Recording the voice — ${demo.prepareProgress.done} of ${demo.prepareProgress.total} lines. You can still press play; it records that line on the spot.`;
+      // The recording take's own badge says which voice and how far — saying it
+      // twice, in two wordings, was the noise (Chad, 2026-08-29).
+      return "";
     case "ready":
       return "Voice ready — the take plays instantly";
     case "failed":
@@ -191,6 +232,10 @@ async function playWholeTake(script: DemoScript): Promise<void> {
         </p>
       </div>
       <div class="head-actions">
+        <!-- WHICH voice, where the takes are (Chad, 2026-08-29) — the thing you
+             re-judge on every playback, changeable without leaving for
+             Settings. -->
+        <DemoVoicePicker />
         <button
           type="button"
           class="quiet"
@@ -232,23 +277,89 @@ async function playWholeTake(script: DemoScript): Promise<void> {
       </button>
     </p>
 
-    <nav class="tabs" aria-label="Film kit">
+    <nav class="tabs" aria-label="Queue">
       <button
-        v-for="option in TABS"
-        :key="option.id"
         type="button"
         class="tab"
-        :class="{ on: tab === option.id }"
-        :aria-pressed="tab === option.id"
-        :data-testid="`tab-${option.id}`"
-        @click="tab = option.id"
+        :class="{ on: queueView === 'ready' }"
+        data-testid="queue-ready"
+        @click="queueView = 'ready'"
       >
-        {{ option.label }}
+        Ready ({{ readyScripts.length }})
+      </button>
+      <button
+        type="button"
+        class="tab"
+        :class="{ on: queueView === 'waiting' }"
+        data-testid="queue-waiting"
+        @click="queueView = 'waiting'"
+      >
+        Waiting ({{ waitingScripts.length }})
+      </button>
+      <button
+        type="button"
+        class="tab"
+        :class="{ on: queueView === 'completed' }"
+        data-testid="queue-completed"
+        @click="queueView = 'completed'"
+      >
+        Completed ({{ completedScripts.length }})
+      </button>
+      <span class="tab-spacer" />
+      <button
+        type="button"
+        class="tab settings-tab"
+        data-testid="open-film-settings"
+        @click="settingsOpen = true"
+      >
+        Defaults
+      </button>
+      <button
+        type="button"
+        class="primary create-scripts"
+        data-testid="demo-fill-queue"
+        @click="demo.fillQueue()"
+      >
+        Create scripts
       </button>
     </nav>
 
+    <!-- The setup screens, folded into one popup (Chad, 2026-08-29): filming
+         works from the queue; Software / Sample Clips / Rules are how the
+         takes get written, not somewhere you stand. -->
+    <div
+      v-if="settingsOpen"
+      class="settings-pop"
+      data-testid="film-settings-pop"
+      @click.self="settingsOpen = false"
+    >
+      <div class="settings-panel" role="dialog" aria-label="Film settings">
+        <header class="settings-head">
+          <nav class="tabs" aria-label="Film settings">
+            <button
+              v-for="option in SETTINGS_TABS"
+              :key="option.id"
+              type="button"
+              class="tab"
+              :class="{ on: settingsTab === option.id }"
+              :data-testid="`tab-${option.id}`"
+              @click="settingsTab = option.id"
+            >
+              {{ option.label }}
+            </button>
+          </nav>
+          <button
+            type="button"
+            class="quiet close"
+            aria-label="Close settings"
+            @click="settingsOpen = false"
+          >
+            ✕
+          </button>
+        </header>
+
     <!-- SOFTWARE — the roster, and what each product does. -->
-    <section v-if="tab === 'software'" class="panel">
+    <section v-if="settingsTab === 'software'" class="panel">
       <p class="hint">
         Each one is a dot on the node screen. Open its
         <strong>updates</strong> box and paste what that project's Claude Code
@@ -333,7 +444,7 @@ async function playWholeTake(script: DemoScript): Promise<void> {
     </section>
 
     <!-- UPDATE SAMPLES — the bank, filed under top-level ideas. -->
-    <section v-if="tab === 'samples'" class="panel">
+    <section v-if="settingsTab === 'samples'" class="panel">
       <p class="hint">
         This is the <strong>HUD talking</strong> — the assistant's own voice
         between the software updates, played on the orb. Don't name software
@@ -441,7 +552,7 @@ async function playWholeTake(script: DemoScript): Promise<void> {
     </section>
 
     <!-- RULES — what a number is allowed to be when a take speaks one. -->
-    <section v-if="tab === 'rules'" class="panel">
+    <section v-if="settingsTab === 'rules'" class="panel">
       <p class="hint">
         One rule per line, the way you'd say it —
         <code>leads: 300-1200</code> or <code>sales: $434-2340</code>. Put a
@@ -505,8 +616,11 @@ async function playWholeTake(script: DemoScript): Promise<void> {
       </div>
     </section>
 
-    <!-- SCRIPTS — the queue of takes, and the approvals that clear them. -->
-    <section v-if="tab === 'scripts'" class="panel">
+      </div>
+    </div>
+
+    <!-- THE QUEUE — the page itself. -->
+    <section class="panel">
       <div class="take-row">
         <span class="counts">
           <strong>{{ readyScripts.length }}</strong> ready to film ·
@@ -535,45 +649,19 @@ async function playWholeTake(script: DemoScript): Promise<void> {
         >
           Unapprove all
         </button>
-        <button
-          type="button"
-          class="primary"
-          data-testid="demo-fill-queue"
-          @click="demo.fillQueue()"
-        >
-          Create scripts
-        </button>
       </div>
 
-      <nav class="queue-tabs" aria-label="Queue">
-        <button
-          type="button"
-          class="tab"
-          :class="{ on: queueView === 'ready' }"
-          data-testid="queue-ready"
-          @click="queueView = 'ready'"
-        >
-          Ready to film ({{ readyScripts.length }})
-        </button>
-        <button
-          type="button"
-          class="tab"
-          :class="{ on: queueView === 'waiting' }"
-          data-testid="queue-waiting"
-          @click="queueView = 'waiting'"
-        >
-          Waiting ({{ waitingScripts.length }})
-        </button>
-      </nav>
-
       <ol v-if="shownScripts.length > 0" class="queue">
-        <li v-for="script in shownScripts" :key="script.id">
+        <li
+          v-for="script in shownScripts"
+          :key="script.id"
+          :class="{ played: script.playedAt !== undefined }"
+        >
           <header class="queue-head">
-            <!-- A recorded take carries no status: reaching the Ready to film
-                 tab already says it (Chad, 2026-08-28). Only the two states
-                 the user is waiting on get a word. -->
+            <!-- Every stage wears its word, recorded included (Chad,
+                 2026-08-29): a blank badge beside labelled ones reads as
+                 unfinished rather than as done. -->
             <span
-              v-if="demo.scriptStage(script) !== 'recorded'"
               class="status"
               :class="demo.scriptStage(script)"
               :data-testid="`status-${script.id}`"
@@ -589,15 +677,51 @@ async function playWholeTake(script: DemoScript): Promise<void> {
             <span v-if="runtimeLabel(script)" class="runtime">{{
               runtimeLabel(script)
             }}</span>
+            <!-- The same number the film slate showed on camera — how footage
+                 on disk is matched back to its take (Chad, 2026-08-29). -->
+            <span v-if="script.clipNumber !== undefined" class="clip-number">
+              Clip #{{ script.clipNumber }}
+            </span>
+            <span v-if="script.playedAt !== undefined" class="played-at">
+              Played {{ playedLabel(script.playedAt) }}
+            </span>
             <button
               v-if="demo.scriptStage(script) === 'recorded'"
               type="button"
               class="quiet-action"
-              title="Play the whole thing — HUD, then the node screen"
+              :title="
+                script.playedAt === undefined
+                  ? 'Play the whole thing — HUD, then the node screen'
+                  : 'Play this take again'
+              "
               :data-testid="`demo-${script.id}`"
-              @click="demo.requestRoutine(script.id)"
+              @click="filmInNewTab(script.id)"
             >
-              ▶ Demo
+              {{ script.playedAt === undefined ? "▶ Demo" : "↻ Replay" }}
+            </button>
+            <button
+              v-if="
+                demo.scriptStage(script) === 'recorded' &&
+                script.playedAt !== undefined &&
+                script.completedAt === undefined
+              "
+              type="button"
+              class="quiet-action"
+              title="This one's the keeper — stop counting it as work left"
+              :data-testid="`complete-${script.id}`"
+              @click="demo.markComplete(script.id)"
+            >
+              ✓ Mark Complete
+            </button>
+            <button
+              v-if="script.completedAt !== undefined"
+              type="button"
+              class="quiet-action complete-mark"
+              title="Completed — click to put it back in the rotation"
+              :data-testid="`uncomplete-${script.id}`"
+              @click="demo.unmarkComplete(script.id)"
+            >
+              ✓ Complete
             </button>
             <!-- ONE button, one word (Chad, 2026-08-28). Approve sits where
                  Demo sits, so the eye lands in the same place on either tab,
@@ -609,11 +733,19 @@ async function playWholeTake(script: DemoScript): Promise<void> {
               v-if="demo.scriptStage(script) !== 'recorded'"
               type="button"
               class="quiet-action"
-              :disabled="demo.readiness === 'preparing'"
-              :data-testid="`approve-${script.id}`"
-              @click="demo.approveScript(script.id)"
+              :class="{ cancelling: demo.scriptStage(script) === 'recording' }"
+              :data-testid="
+                demo.scriptStage(script) === 'recording'
+                  ? `cancel-${script.id}`
+                  : `approve-${script.id}`
+              "
+              @click="
+                demo.scriptStage(script) === 'recording'
+                  ? demo.cancelPrepare()
+                  : demo.approveScript(script.id)
+              "
             >
-              Approve
+              {{ demo.scriptStage(script) === "recording" ? "Cancel" : "Approve" }}
             </button>
 
             <!-- Everything else lives behind the dots: three buttons per card
@@ -697,6 +829,10 @@ async function playWholeTake(script: DemoScript): Promise<void> {
       <p v-else-if="queueView === 'ready'" class="hint">
         Nothing is recorded yet. Press <strong>Approve all</strong> and the
         voices record in one pass — each take moves here as it finishes.
+      </p>
+      <p v-else-if="queueView === 'completed'" class="hint">
+        Nothing filmed and marked done yet — after a take plays, press
+        <strong>✓ Mark Complete</strong> on it and it lands here.
       </p>
       <p v-else class="hint">
         Nothing waiting — every take is recorded and ready to film.
@@ -1001,6 +1137,90 @@ textarea.bank {
 .counts strong {
   color: var(--ink-1);
 }
+.queue > li.played .queue-head,
+.queue > li.played .lines {
+  opacity: 0.55;
+}
+
+/* Stopping is not a quiet action — it is the one you want to find fast. */
+.quiet-action.cancelling {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* Ready is the good state — it wears the accent rather than the quiet grey
+   the waiting states use. */
+.tab-spacer {
+  flex: 1;
+}
+
+.settings-pop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 55%);
+}
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(860px, calc(100vw - 48px));
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  padding: 12px 18px 18px;
+  border: 1px solid var(--hair-strong);
+  border-radius: 8px;
+  background: var(--bg-shell);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 55%);
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Sits in the tab row, so it keeps the row's rhythm rather than the panel's. */
+.tabs .create-scripts {
+  margin-left: 10px;
+  padding: 5px 12px;
+}
+
+.settings-head .close {
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.quiet-action.complete-mark {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  color: var(--color-accent);
+}
+
+.status.recorded {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  color: var(--color-accent);
+}
+
+.played-at {
+  margin-left: 8px;
+  color: var(--ink-3);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* The clip number is the take's on-camera identity — a touch louder than the
+   played time beside it. */
+.clip-number {
+  margin-left: 8px;
+  color: var(--ink-2);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .queue {
   list-style: none;
   margin: 16px 0 0;

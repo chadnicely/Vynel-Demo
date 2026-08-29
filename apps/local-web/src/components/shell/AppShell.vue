@@ -92,6 +92,7 @@ import { useSessionActivityFeed } from "../../composables/activity/use-session-a
 import { useVoiceChatStatus } from "../../composables/sessions/use-voice-chat-status.js";
 import { useSessionsNavigation } from "../../composables/sessions/use-sessions-navigation.js";
 import { useDemoRoutine } from "../../composables/demo/use-demo-routine.js";
+import DemoFilmSlate from "../demo/DemoFilmSlate.vue";
 import { useDemoStore } from "../../stores/demo-store.js";
 import { useDisplayToggle } from "../../composables/display/use-display-toggle.js";
 import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
@@ -647,6 +648,50 @@ const { isDisplayActive, toggleDisplay, showDisplay, leaveDisplay, pickDisplay }
 // screen's Play) rings the demo store; this runs the take.
 const demo = useDemoStore();
 useDemoRoutine({ showDisplay, leaveDisplay });
+
+// A tab opened from the film screen's Demo button carries the take to play
+// (Chad, 2026-08-29). The scripts tab stays where it was; this one is the
+// camera. The parameter is stripped once read, so a refresh here does not
+// silently re-film.
+//
+// The take opens with the FILM SLATE (Chad, same day): the clip number the
+// footage will be matched by, a 3-second countdown, then black. Armed, black
+// holds until he starts talking — the wake phrase starts the routine and the
+// slate lifts. Unarmed (a rehearsal replay), the take starts itself off the
+// countdown; the slate lifts the same way, on the routine actually running.
+const filmSlateClip = ref<number | null>(null);
+let filmSlateScriptId: string | null = null;
+
+onMounted(() => {
+  const play = new URLSearchParams(window.location.search).get("play");
+  if (play === null) return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete("play");
+  window.history.replaceState({}, "", url);
+  filmSlateScriptId = play;
+  filmSlateClip.value = demo.assignClipNumber(play);
+});
+
+function onFilmSlateBlack(): void {
+  if (filmSlateScriptId === null) return;
+  if (demo.isArmed) {
+    // Staged, not started: the take begins when HE does. The wake phrase runs
+    // `takeToFilm`, which reads this request first.
+    demo.requestedScriptId = filmSlateScriptId;
+  } else {
+    demo.requestRoutine(filmSlateScriptId);
+  }
+}
+
+watch(
+  () => demo.isRoutineRunning,
+  (running) => {
+    if (running && filmSlateClip.value !== null) {
+      filmSlateClip.value = null;
+      filmSlateScriptId = null;
+    }
+  },
+);
 const displayVoice = useDisplayVoice();
 
 // The view switch's reading (Kafi, 2026-08-22) — Nodes | Display | Normal,
@@ -912,6 +957,11 @@ onBeforeUnmount(() => {
        away (their grid row collapses), chat keeps the left, the page takes
        the right. Closing restores every piece — nothing is torn down. -->
   <div class="app-shell" :class="{ 'full-view': isFullView }">
+    <DemoFilmSlate
+      v-if="filmSlateClip !== null"
+      :clip-number="filmSlateClip"
+      @black="onFilmSlateBlack"
+    />
     <AppTitleBar
       :theme="ui.theme"
       :nav-mode="ui.navMode"

@@ -15,6 +15,7 @@ import {
 } from "../demo/demo-fleet.js";
 import {
   allDemoGreetings,
+  pickDemoGreeting,
   categorySamples,
   CONCLUSION_CATEGORY_ID,
   DEFAULT_UPDATE_CATEGORIES,
@@ -35,6 +36,10 @@ import {
   type MetricRule,
 } from "../demo/demo-rules.js";
 import { createDemoAudioBank } from "../demo/demo-audio.js";
+import {
+  highlightLine,
+  type DemoLineHighlight,
+} from "../demo/demo-line-highlight.js";
 import {
   readDemoArmedFlag,
   writeDemoArmedFlag,
@@ -57,6 +62,31 @@ export interface DemoScript {
   lines: DemoScriptLine[];
   status: DemoScriptStatus;
   readonly createdAt: number;
+  /** The line this take opens with on camera, drawn ONCE when the take is
+   *  written (Chad, 2026-08-28: "why is it doing 16 greetings"). The routine
+   *  used to re-roll from the pool at film time, so the bank had to pre-record
+   *  all sixteen for every approval — 16 lines of work to speak one. Optional
+   *  because takes written before this change have none; they fall back to a
+   *  draw at film time. */
+  readonly greeting?: string;
+  /** The handoff line into the updates, drawn once with the greeting. The
+   *  routine used to pick at film time, so every intro sample in the bank had
+   *  to be pre-recorded. */
+  readonly intro?: string | null;
+  /** The closing line, same rule. */
+  readonly conclusion?: string | null;
+  /** When this take last finished on camera (epoch ms). The list dims a played
+   *  take and says when, so a run of rehearsals reads at a glance
+   *  (Chad, 2026-08-29). Undefined = never played. */
+  playedAt?: number;
+  /** The clip number the film slate showed when this take was last filmed
+   *  (Chad, 2026-08-29): the number on camera and the number on this card are
+   *  the same fact, so footage on disk can be matched to its take. */
+  clipNumber?: number;
+  /** When the user called this take FINISHED (epoch ms) — the good take is in
+   *  the can. It stays in the list, replayable, but stops being work left to
+   *  do. Undefined = still in the rotation. */
+  completedAt?: number;
 }
 
 /** How many takes the queue holds ready (Chad, 2026-08-28: "10 in cue"). */
@@ -68,6 +98,7 @@ export const DEMO_QUEUE_TARGET = 10;
 export type TakePart = "opening" | "software";
 
 const DEMO_SCRIPTS_STORAGE_KEY = "vynel.demo-scripts";
+const DEMO_CLIP_COUNTER_STORAGE_KEY = "vynel.demo-clip-counter";
 const DEMO_ACTIVE_SCRIPT_STORAGE_KEY = "vynel.demo-active-script";
 const DEMO_ROSTER_STORAGE_KEY = "vynel.demo-projects";
 const DEMO_SAMPLES_STORAGE_KEY = "vynel.demo-update-samples";
@@ -130,12 +161,14 @@ function readStoredScripts(): DemoScript[] {
           typeof (script as DemoScript).title === "string" &&
           Array.isArray((script as DemoScript).lines),
       )
-      // EVERY restored take is pending. Approving means "recorded and ready to
-      // film", and the recordings are WAV blobs held in memory — a reload
-      // wipes them. Coming back to cards that claimed to be approved with no
-      // audio behind them was the confusion (Chad, 2026-08-28); the honest
-      // state after a reload is the one before the button was pressed.
-      .map((script) => ({ ...script, status: "pending" as const }));
+      // The approval is kept: recordings persist (demo-audio-cache), so a
+      // restored "approved" is backed by real audio. `scriptStage` still asks
+      // the bank line by line, so a take whose audio IS missing falls back to
+      // "recording" and re-records rather than lying about being ready.
+      .map((script) => ({
+        ...script,
+        status: script.status === "approved" ? ("approved" as const) : ("pending" as const),
+      }));
   } catch {
     return [];
   }
@@ -567,6 +600,18 @@ export const useDemoStore = defineStore("demo", () => {
     else localStorage.setItem(DEMO_ACTIVE_SCRIPT_STORAGE_KEY, value);
   });
 
+  // The film tab stamps playedAt; this is how the queue tab hears about it.
+  // `storage` fires only in the OTHER tabs, so it cannot loop on its own write.
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", (event) => {
+      if (event.key !== DEMO_SCRIPTS_STORAGE_KEY) return;
+      const fresh = readStoredScripts();
+      // An empty read means junk or a clear; keeping what we have beats
+      // blanking the queue because another tab wrote something unparseable.
+      if (fresh.length > 0) scripts.value = fresh;
+    });
+  }
+
   function adoptScript(lines: DemoScriptLine[], title: string): DemoScript {
     const script: DemoScript = {
       id: crypto.randomUUID(),
@@ -574,6 +619,9 @@ export const useDemoStore = defineStore("demo", () => {
       lines,
       status: "pending",
       createdAt: Date.now(),
+      greeting: pickDemoGreeting(Math.random),
+      intro: pickIntroLine(),
+      conclusion: pickConclusionLine(),
     };
     scripts.value = [script, ...scripts.value];
     // The new script becomes the active one: writing it is the clearest
@@ -648,6 +696,9 @@ export const useDemoStore = defineStore("demo", () => {
           lines,
           status: "pending",
           createdAt: Date.now(),
+          greeting: pickDemoGreeting(Math.random),
+          intro: pickIntroLine(),
+          conclusion: pickConclusionLine(),
         },
       ];
     }
@@ -789,6 +840,37 @@ export const useDemoStore = defineStore("demo", () => {
     if (approvedScripts.value.length > 0) nextTakeIndex.value += 1;
   }
 
+  /** One number per time a camera rolls, NEVER reused — the whole point is
+   *  that no two clips on disk share it. Stamped on the take being filmed so
+   *  the queue card carries the same number the slate showed. */
+  function assignClipNumber(scriptId: string): number {
+    const last = Number(localStorage.getItem(DEMO_CLIP_COUNTER_STORAGE_KEY) ?? "0");
+    const clip = (Number.isFinite(last) && last >= 0 ? last : 0) + 1;
+    localStorage.setItem(DEMO_CLIP_COUNTER_STORAGE_KEY, String(clip));
+    scripts.value = scripts.value.map((script) =>
+      script.id === scriptId ? { ...script, clipNumber: clip } : script,
+    );
+    return clip;
+  }
+
+  /** "That one's the keeper." The take stays — rehearsal is re-watching — but
+   *  it leaves the ready count and the filming rotation. */
+  function markComplete(scriptId: string): void {
+    const at = Date.now();
+    scripts.value = scripts.value.map((script) =>
+      script.id === scriptId ? { ...script, completedAt: at } : script,
+    );
+  }
+
+  /** Undo it: a take called finished too early has to be recoverable. */
+  function unmarkComplete(scriptId: string): void {
+    scripts.value = scripts.value.map((script) => {
+      if (script.id !== scriptId) return script;
+      const { completedAt: _dropped, ...rest } = script;
+      return rest;
+    });
+  }
+
   function updateLine(scriptId: string, index: number, text: string): void {
     const script = scripts.value.find((row) => row.id === scriptId);
     if (script === undefined || script.lines[index] === undefined) return;
@@ -825,12 +907,27 @@ export const useDemoStore = defineStore("demo", () => {
     const approved = approvedScripts.value.flatMap((script) =>
       script.lines.map((line) => line.text),
     );
-    // The greeting pool is 16 lines and only matters to the ARMED routine, so
-    // it waits until a take is approved. Filling the queue therefore records
-    // nothing, and approving one records THAT take immediately rather than
-    // sitting behind sixteen hellos nobody has asked for yet.
+    // Only the greetings the approved takes actually open with — each take
+    // drew ONE when it was written. Recording the whole 16-line pool meant
+    // approving a 7-line take queued 35 lines of work to speak 8 of them.
+    // A take written before takes carried their greeting has none, so the pool
+    // is still needed for those.
+    const settled = approvedScripts.value.flatMap((script) =>
+      [script.greeting, script.intro, script.conclusion].filter(
+        (line): line is string => typeof line === 'string' && line.length > 0,
+      ),
+    );
+    // A take written before takes settled their own furniture has none of it,
+    // so those still need the pools.
+    const anyUnsettled = approvedScripts.value.some(
+      (script) => script.greeting === undefined,
+    );
     const spokenAround =
-      approved.length > 0 ? [...allDemoGreetings(), ...framingLines.value] : [];
+      approved.length === 0
+        ? []
+        : anyUnsettled
+          ? [...allDemoGreetings(), ...framingLines.value]
+          : settled;
     return [...new Set([...looking, ...approved, ...spokenAround])];
   }
 
@@ -853,7 +950,12 @@ export const useDemoStore = defineStore("demo", () => {
   // a pass whose lines are all recorded already costs nothing.
   let recordingChain: Promise<void> = Promise.resolve();
 
+  /** Raised by `cancelPrepare` so the pass that is still unwinding cannot
+   *  report its own interruption as a failure. */
+  let cancelled = false;
+
   async function recordOnce(): Promise<void> {
+    cancelled = false;
     const texts = linesToRecord();
     if (bank.isReady(texts)) {
       readiness.value = "ready";
@@ -865,8 +967,40 @@ export const useDemoStore = defineStore("demo", () => {
       prepareProgress.value = { done, total };
       recordedTick.value += 1;
     });
+    if (cancelled) return; // cancelPrepare already settled the state
     readiness.value = complete ? "ready" : "failed";
   }
+
+  /** Stop recording where it stands. Recorded lines are kept — they are right
+   *  for the voice that made them (Chad, 2026-08-29: cancel when it is the
+   *  wrong voice). Readiness drops back so the screen offers Approve again. */
+  function cancelPrepare(): void {
+    cancelled = true;
+    bank.cancelPrepare();
+    // A take whose lines all landed before the stop is genuinely recorded and
+    // stays Ready; the rest go back to Pending, which is what they are.
+    scripts.value = scripts.value.map((script) => {
+      if (script.status !== "approved") return script;
+      const recorded = script.lines.every(
+        (line) => bank.durationOf(line.text) !== null,
+      );
+      return recorded ? script : { ...script, status: "pending" as const };
+    });
+    readiness.value = "idle";
+    prepareProgress.value = { done: 0, total: 0 };
+  }
+
+  // On startup, put back what earlier sessions recorded. Without it the bank
+  // begins empty every load and every take reads as unrecorded — "Ready (0)"
+  // over a disk full of audio (Chad, 2026-08-29).
+  void (async () => {
+    const wanted = linesToRecord();
+    if (wanted.length === 0) return;
+    if (await bank.hydrate(wanted)) {
+      recordedTick.value += 1;
+      if (bank.isReady(wanted)) readiness.value = "ready";
+    }
+  })();
 
   function prepareAudio(): Promise<void> {
     recordingChain = recordingChain.then(recordOnce, recordOnce);
@@ -953,10 +1087,47 @@ export const useDemoStore = defineStore("demo", () => {
   // The node screen renders THESE while a routine drives (null = not driving).
   // The sequencer mutates them line by line; NodesView only watches.
   const isRoutineRunning = ref(false);
+
+  /** The take the running routine is filming, remembered while it runs.
+   *  Captured on the RISING edge: by the time the run ends the request that
+   *  chose it has already been cleared. */
+  let filmingScriptId: string | null = null;
+  watch(isRoutineRunning, (running, wasRunning) => {
+    if (running) {
+      // The routine films `takeToFilm` — the one ASKED for, else the
+      // rotation's turn. Stamping activeScriptId instead marked whatever the
+      // queue screen happened to be looking at, which in a freshly opened film
+      // tab is nothing at all (Chad, 2026-08-29: "it didn't show shit").
+      filmingScriptId = takeToFilm.value?.id ?? null;
+      return;
+    }
+    if (wasRunning !== true) return;
+    const playedId = filmingScriptId;
+    filmingScriptId = null;
+    if (playedId === null) return;
+    const at = Date.now();
+    scripts.value = scripts.value.map((script) =>
+      script.id === playedId ? { ...script, playedAt: at } : script,
+    );
+  });
   /** A pre-recorded line is playing right now. The Display reads this to burn
    *  and mouth like it does for a live reply — the take makes no session of
    *  its own, so without it the orb sat still through a whole video. */
   const isSpeakingLine = ref(false);
+
+  /** THE BOARD (Chad, 2026-08-29): each spoken line's headline — "Sales came
+   *  in · $2,300" — accumulating on the Display's side panel, newest lit, so
+   *  the audience reads the numbers the voice is saying. Lives per take:
+   *  filled as lines play, wiped with the scene. */
+  const routineBoard = ref<Array<DemoLineHighlight & { live: boolean }>>([]);
+  const BOARD_ROWS = 6;
+
+  function postToBoard(text: string): void {
+    const highlight = highlightLine(text, projects.value.map((project) => project.name));
+    if (highlight === null) return;
+    const settled = routineBoard.value.map((row) => ({ ...row, live: false }));
+    routineBoard.value = [...settled, { ...highlight, live: true }].slice(-BOARD_ROWS);
+  }
   const routineNodes = ref<SceneNode[] | null>(null);
   const routineMessages = ref<SceneMessage[]>([]);
 
@@ -1000,6 +1171,7 @@ export const useDemoStore = defineStore("demo", () => {
       status: "idle" as const,
     }));
     routineMessages.value = [];
+    routineBoard.value = [];
   }
 
   /** Hand the node screen back to the real fleet. Disarming does this too;
@@ -1008,6 +1180,7 @@ export const useDemoStore = defineStore("demo", () => {
   function clearRoutineScene(): void {
     routineNodes.value = null;
     routineMessages.value = [];
+    routineBoard.value = [];
   }
 
   /** Light one project's dot and fire an arc from the core to it. */
@@ -1113,13 +1286,19 @@ export const useDemoStore = defineStore("demo", () => {
     readiness,
     prepareProgress,
     prepareAudio,
+    cancelPrepare,
+    markComplete,
+    unmarkComplete,
+    assignClipNumber,
     activeScriptRuntimeSeconds,
     lineDurationSeconds: (text: string) => {
       void recordedTick.value;
       return bank.durationOf(text);
     },
     isSpeakingLine,
+    routineBoard,
     playRecordedLine: async (text: string) => {
+      postToBoard(text);
       isSpeakingLine.value = true;
       try {
         await bank.play(text);
