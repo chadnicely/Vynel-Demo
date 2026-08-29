@@ -1,3 +1,4 @@
+import { cpus } from "node:os";
 import type { OfflineTtsConfig } from "./native.js";
 import type { TtsModelConfig } from "../voice-engine.js";
 
@@ -12,12 +13,22 @@ import type { TtsModelConfig } from "../voice-engine.js";
 // Doubling the threads roughly halves it on any modern 8+-core machine, and
 // synthesis is BURSTY (one sentence at a time, prefetch depth 1), so this is
 // not a sustained load on the box.
-const DEFAULT_NUM_THREADS = 4;
+// Fixed at 4 until 2026-08-29, when Kokoro took 7.6s for "Good evening" and
+// 16.6s for a full sentence on an 8-core box — a preview that reads as broken.
+// 4 was chosen as "any modern 8+-core machine", but hard-coding it left half of
+// exactly those machines idle. Scale to the box instead, keeping two cores for
+// the wake leg (VAD + STT run continuously beside this) and never dropping
+// below the old floor of 2.
+function defaultNumThreads(): number {
+  const cores = cpus().length;
+  return Math.max(2, Math.min(8, cores - 2));
+}
 const CPU_PROVIDER = "cpu";
 
 export interface BuildOfflineTtsConfigInput {
   readonly tts: TtsModelConfig;
-  /** Inference threads. Default 4 — first-sentence latency over politeness. */
+  /** Inference threads. Defaults to the machine's cores minus two — first-
+   *  sentence latency over politeness, without starving the wake leg. */
   readonly numThreads?: number;
   /** Split cap for long text. Undefined = the model default. */
   readonly maxNumSentences?: number;
@@ -27,7 +38,7 @@ export function buildOfflineTtsConfig(
   input: BuildOfflineTtsConfigInput,
 ): OfflineTtsConfig {
   const base = {
-    numThreads: input.numThreads ?? DEFAULT_NUM_THREADS,
+    numThreads: input.numThreads ?? defaultNumThreads(),
     provider: CPU_PROVIDER,
     ...(input.maxNumSentences !== undefined
       ? { maxNumSentences: input.maxNumSentences }

@@ -1,4 +1,9 @@
+import { cpus } from 'node:os'
 import { describe, expect, it } from 'vitest'
+
+/** The default follows the machine — cores minus two, floored at 2 — so the
+ *  expectation follows it too rather than pinning one box's answer. */
+const expectedThreads = Math.max(2, Math.min(8, cpus().length - 2))
 import { buildOfflineTtsConfig } from './build-offline-tts-config.js'
 
 describe('buildOfflineTtsConfig', () => {
@@ -14,7 +19,7 @@ describe('buildOfflineTtsConfig', () => {
     })
 
     expect(config).toEqual({
-      numThreads: 4,
+      numThreads: expectedThreads,
       provider: 'cpu',
       model: {
         kokoro: {

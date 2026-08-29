@@ -3,8 +3,8 @@ import { computed, ref, watch } from "vue";
 import { PhPlay as Play, PhSpeakerHigh as SpeakerHigh } from "@phosphor-icons/vue";
 import type { VoiceReloadResponse } from "@vynel/contracts/voice/voice-reload";
 import { useReloadVoice } from "../../composables/voice/use-reload-voice.js";
-import { createSpokenAudioPlayer } from "../../composables/voice/spoken-audio-player.js";
 import { playSpeakerTest } from "../../composables/voice/speaker-test-tone.js";
+import { playVoicePreview } from "../../composables/voice/preview-voice.js";
 import type { LocalModelStatusResponse } from "@vynel/contracts/models/local-models-http";
 import {
   LOCAL_STT_MODEL_IDS,
@@ -145,17 +145,21 @@ function chooseSpeaker(event: Event) {
   if (Number.isInteger(value) && value >= 0) savePick({ voiceSpeakerId: value });
 }
 
-// Preview plays through the same path a reply does — the daemon's current
-// voice — so what you hear is what you picked (once applied). Silence means
-// no daemon is running; the note above already says so.
+// Preview speaks in the voice actually chosen — the cloud door when a
+// provider is the source, the local model otherwise. It used to go through the
+// spoken player, which only ever reaches the daemon's LOCAL voice, so
+// auditioning cloud voices played Kokoro every time. A failure now says why
+// instead of leaving the button silent.
 const PREVIEW_LINE = "Hi, I'm Vynel. This is how I'll sound.";
-const previewPlayer = createSpokenAudioPlayer();
 const isPreviewing = ref(false);
+const previewProblem = ref<string | null>(null);
 async function preview() {
   if (isPreviewing.value) return;
   isPreviewing.value = true;
+  previewProblem.value = null;
   try {
-    await previewPlayer.play(PREVIEW_LINE);
+    const outcome = await playVoicePreview(PREVIEW_LINE);
+    previewProblem.value = outcome.ok ? null : outcome.reason;
   } finally {
     isPreviewing.value = false;
   }
@@ -248,6 +252,10 @@ async function preview() {
           @save="savePick"
         />
       </section>
+
+      <p v-if="previewProblem !== null" class="m-0 text-xs text-danger" role="alert">
+        {{ previewProblem }}
+      </p>
 
       <section class="flex flex-col gap-2">
         <h3 class="m-0 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Devices</h3>
