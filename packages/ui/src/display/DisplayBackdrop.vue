@@ -438,7 +438,7 @@
   .bd-aurora,
   .bd-stars,
   .bd-sheen {
-    animation: none;
+    animation: none !important;
   }
 
   .bd-stars {

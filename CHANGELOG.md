@@ -53,6 +53,14 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Fixed
 
+- **"Reduce motion" calms the room instead of shaking it.** With Windows' animation effects
+  switched off (Settings → Accessibility → Visual effects), every looping animation in the app
+  ran at ten microseconds a cycle rather than stopping — the Display's starfield, aurora and
+  sheen strobed hundreds of times a second, and the same went for every spinner and pulse in the
+  app. The accessibility rule capped how long an animation may take but never how many times it
+  may repeat, so "reduce motion" turned into "maximum motion". Animations now run once and
+  settle, and the Display's own guard can no longer be out-ranked by its per-layer styles.
+
 - **The assistant is visible whenever it talks to you.** A spoken line used to play with no
   pixels anywhere when Vynel was minimized or you were working in another tab — nothing surfaced
   the voice widget. The dock's corner row now appears for every spoken line (a speaking orb with
