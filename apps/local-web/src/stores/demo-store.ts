@@ -26,6 +26,7 @@ import {
   relinkEditedLine,
   writeDemoTake,
   type DemoScriptLine,
+  type DemoLineSurface,
   type UpdateCategory,
 } from "../demo/demo-script-writer.js";
 import {
@@ -1119,14 +1120,23 @@ export const useDemoStore = defineStore("demo", () => {
    *  in · $2,300" — accumulating on the Display's side panel, newest lit, so
    *  the audience reads the numbers the voice is saying. Lives per take:
    *  filled as lines play, wiped with the scene. */
-  const routineBoard = ref<Array<DemoLineHighlight & { live: boolean }>>([]);
+  const routineBoard = ref<
+    Array<DemoLineHighlight & { live: boolean; surface: DemoLineSurface }>
+  >([]);
   const BOARD_ROWS = 6;
 
-  function postToBoard(text: string): void {
+  /** Each row remembers the screen that said it. Without this the HUD's
+   *  "$1,508 in sales" stayed on the board after the film cut to the
+   *  constellation, so a product spoke while a minute-old money figure sat over
+   *  it (Chad, 2026-08-29). A line with no figure settles the board rather than
+   *  leaving the previous row lit. */
+  function postToBoard(text: string, surface: DemoLineSurface = "hud"): void {
     const highlight = highlightLine(text, projects.value.map((project) => project.name));
-    if (highlight === null) return;
     const settled = routineBoard.value.map((row) => ({ ...row, live: false }));
-    routineBoard.value = [...settled, { ...highlight, live: true }].slice(-BOARD_ROWS);
+    routineBoard.value =
+      highlight === null
+        ? settled
+        : [...settled, { ...highlight, live: true, surface }].slice(-BOARD_ROWS);
   }
   const routineNodes = ref<SceneNode[] | null>(null);
   const routineMessages = ref<SceneMessage[]>([]);
@@ -1297,8 +1307,8 @@ export const useDemoStore = defineStore("demo", () => {
     },
     isSpeakingLine,
     routineBoard,
-    playRecordedLine: async (text: string) => {
-      postToBoard(text);
+    playRecordedLine: async (text: string, surface: DemoLineSurface = "hud") => {
+      postToBoard(text, surface);
       isSpeakingLine.value = true;
       try {
         await bank.play(text);

@@ -45,3 +45,14 @@ describe("highlightLine", () => {
     expect(highlight!.label.length).toBeLessThanOrEqual(22);
   });
 });
+
+describe("filler that is never a label", () => {
+  it("reads the subject, not who did it — the WE BOOKED case", () => {
+    // On camera this printed "WE BOOKED · $911", which says nothing about the
+    // business (Chad, 2026-08-29).
+    expect(highlightLine("We booked $911 in sales this evening.")).toEqual({
+      label: "Sales",
+      value: "$911",
+    });
+  });
+});

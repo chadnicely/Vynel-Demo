@@ -21,11 +21,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   over a machine with a perfectly good voice.
 
 - **The screen says the numbers out loud.** While a take plays, the panels come on whatever the
-  toggle says, and a board follows the voice: each spoken line's headline — "Sales · $2,300",
-  "Quiz submissions · 225" — lands big in the centre of the room as it is said, with the running
-  history in one panel beside it. The nodes half gets the same treatment, centred over the
-  constellation, so a product's figure hits the screen as its node lights. Off camera every
-  panel goes back exactly as it was.
+  toggle says, and a board follows the voice. Whatever is being said right now lands big in the
+  middle of the room — one figure, readable from across a room — while the side menu keeps the
+  running report stacked beneath it: open rate, sales, quiz submissions, replies, in the order
+  they were spoken. The nodes half gets the same treatment as a single line under its own bar,
+  centred over the constellation, so a product's figure hits the screen as its node lights.
+  Each row remembers which screen said it, so the HUD's money no longer hangs over the
+  constellation a minute after it was spoken. Off camera every panel goes back exactly as it was.
 
 - **The film screen runs itself.** Ready / Waiting / Completed are the tabs; Software, Sample
   Clips and Rules folded into a Defaults popup beside Create scripts. The header names the voice

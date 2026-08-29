@@ -30,12 +30,7 @@ import { demoFleetNodes } from "../demo/demo-fleet.js";
 // Same rows as the Display's panel, CENTRED: this screen has no side columns
 // to hang panels off, and centre is where he asked for them.
 
-import {
-  DisplayBackdrop,
-  DisplayPanel,
-  resolveDisplayColour,
-  type DisplayPanelRow,
-} from "@vynel/ui";
+import { DisplayBackdrop, resolveDisplayColour } from "@vynel/ui";
 import NodesFleetBar from "../components/nodes/NodesFleetBar.vue";
 import NodesGrid from "../components/nodes/NodesGrid.vue";
 import NodesRace from "../components/nodes/NodesRace.vue";
@@ -249,15 +244,15 @@ const level = computed(() => activeNodeLevel(stack.value, registry));
 // fleet level, so a drilled stack still shows its own dots.
 const demo = useDemoStore();
 
-const boardRows = computed<DisplayPanelRow[]>(() =>
-  demo.routineBoard.map((row) => ({
-    label: row.label,
-    value: row.value,
-    tone: row.live ? "live" : "default",
-  })),
-);
+// Only rows spoken ON this screen: the HUD's money belongs to the other half
+// of the take (Chad, 2026-08-29).
 const liveHighlight = computed(
-  () => demo.routineBoard.find((row) => row.live) ?? null,
+  () => demo.routineBoard.find((row) => row.live && row.surface === "nodes") ?? null,
+);
+/** Everything said before the current line — the last three, so the plate
+ *  stays a plate rather than growing down into the constellation. */
+const settledRows = computed(() =>
+  demo.routineBoard.filter((row) => !row.live).slice(-3),
 );
 const isRoutineDriving = computed(
   () => demo.routineNodes !== null && stack.value.length === 0,
@@ -484,17 +479,16 @@ onBeforeUnmount(() => {
     <!-- On camera only (the board empties with the take): the history top
          centre, the number being SAID bottom centre — both clear of the
          constellation's core. -->
-    <div v-if="demo.routineBoard.length > 0" class="routine-board">
-      <DisplayPanel title="On the board" :rows="boardRows" data-testid="nodes-board" />
-    </div>
-    <div
-      v-if="liveHighlight !== null"
-      :key="liveHighlight.label + liveHighlight.value"
-      class="nodes-highlight"
-      data-testid="nodes-highlight"
-    >
-      <span class="hl-value">{{ liveHighlight.value }}</span>
-      <span class="hl-label">{{ liveHighlight.label }}</span>
+    <div v-if="liveHighlight !== null" class="routine-board" data-testid="nodes-board">
+      <div
+        v-if="liveHighlight !== null"
+        :key="liveHighlight.label + liveHighlight.value"
+        class="nodes-highlight"
+        data-testid="nodes-highlight"
+      >
+        <span class="hl-label">{{ liveHighlight.label }}</span>
+        <span class="hl-value">{{ liveHighlight.value }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -612,28 +606,49 @@ onBeforeUnmount(() => {
 /* The take's readout, centred (Chad, 2026-08-29). z above the scene canvas. */
 .routine-board {
   position: absolute;
-  top: 14px;
+  /* Below the screen's own bar, above the first node ring. */
+  top: 52px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 6;
-  width: min(430px, 84vw);
+  padding: 7px 22px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 68%);
+  backdrop-filter: blur(8px);
+}
+
+.board-history {
+  margin: 8px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--display-accent-dim, rgba(120, 200, 255, 0.25));
+  list-style: none;
+}
+
+.board-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 2px 0;
+  font-size: 13px;
+  color: var(--display-text, #cdf3ff);
+  opacity: 0.72;
+}
+
+.bh-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 .nodes-highlight {
-  position: absolute;
-  bottom: 92px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 6;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  animation: nodes-hl-land 0.5s ease-out;
+  align-items: baseline;
+  gap: 14px;
+  white-space: nowrap;
+  animation: nodes-hl-land 0.45s ease-out;
 }
 
 .nodes-highlight .hl-value {
-  font-size: clamp(30px, 4.5vw, 56px);
+  font-size: clamp(24px, 3vw, 36px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
@@ -652,11 +667,11 @@ onBeforeUnmount(() => {
 @keyframes nodes-hl-land {
   0% {
     opacity: 0;
-    transform: translate(-50%, 10px) scale(0.94);
+    transform: translateY(-8px) scale(0.94);
   }
   100% {
     opacity: 1;
-    transform: translate(-50%, 0) scale(1);
+    transform: none;
   }
 }
 </style>

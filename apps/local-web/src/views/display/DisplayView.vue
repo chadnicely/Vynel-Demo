@@ -169,13 +169,17 @@ const panelsOn = computed(
 /** The line being said RIGHT NOW, for the centre of the room — the HUD sits
  *  in the middle, always (Chad, 2026-08-29); the side panel keeps the history. */
 const liveHighlight = computed(
-  () => demo.routineBoard.find((row) => row.live) ?? null,
+  () => demo.routineBoard.find((row) => row.live && row.surface === "hud") ?? null,
 );
 
-/** The spoken headlines, as panel rows — the row being said right now burns
- *  as 'live'; the rest settle so the newest is the one the eye finds. */
+/** Every figure this half of the take has said, in the order it was said. */
+const reportRows = computed(() =>
+  demo.routineBoard.filter((row) => row.surface === "hud"),
+);
+
+/** The same report, stacked down the side menu. */
 const boardRows = computed<DisplayPanelRow[]>(() =>
-  demo.routineBoard.map((row) => ({
+  reportRows.value.map((row) => ({
     label: row.label,
     value: row.value,
     tone: row.live ? "live" : "default",
@@ -349,15 +353,13 @@ const WIDGET_HINT = "Claude can put reports here";
 
       <aside class="column" data-testid="display-column-right">
         <DisplayPanel
-          v-if="demo.routineBoard.length > 0"
+          v-if="boardRows.length > 0"
           title="On the board"
           :rows="boardRows"
           data-testid="display-board"
         />
-        <template v-if="demo.routineBoard.length === 0">
-          <DisplayPanel title="Account" :rows="status.accountRows" />
-          <DisplayPanel title="Legend" :rows="LEGEND_ROWS" />
-        </template>
+        <DisplayPanel title="Account" :rows="status.accountRows" />
+        <DisplayPanel title="Legend" :rows="LEGEND_ROWS" />
         <DisplayWidgetSlot
           name="right"
           :widgets="bySlot.right"
@@ -440,6 +442,14 @@ const WIDGET_HINT = "Claude can put reports here";
   gap: 14px;
 }
 
+.display-view:has([data-testid="display-board"]) .display-body {
+  grid-template-columns: minmax(190px, 232px) 1fr minmax(300px, 380px);
+}
+
+[data-testid="display-board"] {
+  font-size: 15px;
+}
+
 .column {
   display: flex;
   flex-direction: column;
@@ -481,6 +491,12 @@ const WIDGET_HINT = "Claude can put reports here";
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  padding: 10px 28px;
+  border-radius: 12px;
+  /* Its own ground: the figure sat straight on top of whatever was behind it
+     and became unreadable (Chad, 2026-08-29). */
+  background: rgb(0 0 0 / 55%);
+  backdrop-filter: blur(6px);
   animation: hl-land 0.5s ease-out;
 }
 

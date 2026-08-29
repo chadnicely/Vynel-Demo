@@ -112,7 +112,7 @@ export function useDemoRoutine(options: {
           if (!demo.isRoutineRunning) return;
         }
         if (line.projectId !== null) demo.lightProject(line.projectId, index);
-        await demo.playRecordedLine(line.text);
+        await demo.playRecordedLine(line.text, line.surface);
         if (line.projectId !== null) demo.settleProject(line.projectId, index);
         await beat(DEMO_LINE_GAP_SECONDS * 1000);
       }
