@@ -2,22 +2,22 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "cloud-admin-web",
+      "name": "vynel-demo",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@vynel/cloud-admin-web", "dev"],
-      "port": 18891
+      "runtimeArgs": ["dev", "api", "web", "voice"],
+      "port": 38894
     },
     {
       "name": "local-dev",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:local"],
-      "port": 18894
+      "port": 38894
     },
     {
-      "name": "local-web",
+      "name": "cloud-admin-web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@vynel/local-web", "dev"],
-      "port": 18894
+      "runtimeArgs": ["--filter", "@vynel/cloud-admin-web", "dev"],
+      "port": 38891
     }
   ]
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useDemoStore } from "../../stores/demo-store.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import { useVoiceSession } from "../../composables/voice/use-voice-session.js";
 import { useVoiceDaemonLink } from "../../composables/voice/use-voice-daemon-link.js";
@@ -28,6 +29,7 @@ import VoiceStage from "./VoiceStage.vue";
 const emit = defineEmits<{ showDisplay: [] }>();
 
 const ui = useUiStore();
+const demo = useDemoStore();
 const isMuted = ref(false);
 
 // Hoisted handlers so the two composables can reference each other's owners —
@@ -61,6 +63,14 @@ function handleSessionEnded(): void {
 }
 
 function handleWake(command: string, turnWatchdogMs?: number): void {
+  // Demo Mode armed: the wake belongs to the filmed routine (the shell runs
+  // it) — opening the overlay here would put a listening orb over the take.
+  // The spoken words pick the half: wake phrase opens, a software question
+  // shows the products.
+  if (demo.isArmedNow()) {
+    demo.requestSpokenRoutine(command);
+    return;
+  }
   isMuted.value = false;
   ui.isVoiceOverlayOpen = true;
   if (!voice.isActive.value) voice.start(command || undefined, turnWatchdogMs);

@@ -20,7 +20,9 @@ import {
 } from "../composables/nodes/node-level.js";
 import { useActivityStore } from "../stores/activity-store.js";
 import { useCustomizeStore } from "../stores/customize-store.js";
+import { useDemoStore } from "../stores/demo-store.js";
 import { GLOBAL_TAB_ID, useUiStore } from "../stores/ui-store.js";
+import { demoFleetNodes } from "../demo/demo-fleet.js";
 import { DisplayBackdrop, resolveDisplayColour } from "@vynel/ui";
 import NodesFleetBar from "../components/nodes/NodesFleetBar.vue";
 import NodesGrid from "../components/nodes/NodesGrid.vue";
@@ -226,74 +228,28 @@ const registry: NodeLevelRegistry = {
 const level = computed(() => activeNodeLevel(stack.value, registry));
 
 /** What the current level draws — projects out here, sessions in there. */
-// A DEMO fleet, shown only while the Demo switch below is on and there is
-// nothing real to show. It exists so the screen can be LOOKED at before any
-// projects exist — every status is represented once, which is also the only
-// way to check the five status colours still read against a themed room.
-// Nothing here reaches the server, and a real fleet always wins.
-const DEMO_NODES: SceneNode[] = [
-  {
-    id: "demo:core",
-    name: "Vynel",
-    initials: "VY",
-    status: "building",
-    role: "moon",
-    detail: { note: "thinking", elapsedMs: 4200, childCount: 2 },
-  },
-  {
-    id: "demo:1",
-    name: "Video Platform",
-    initials: "VP",
-    status: "building",
-    detail: { tasksDone: 3, tasksTotal: 7, elapsedMs: 18_000 },
-  },
-  {
-    id: "demo:2",
-    name: "Nicely Community",
-    initials: "NC",
-    status: "waiting",
-    detail: { note: "waiting on an answer" },
-  },
-  {
-    id: "demo:3",
-    name: "Course Sprout",
-    initials: "CS",
-    status: "done",
-    detail: { tasksDone: 9, tasksTotal: 9 },
-  },
-  {
-    id: "demo:4",
-    name: "Site Rebuild",
-    initials: "SR",
-    status: "problem",
-    detail: { note: "build failed" },
-  },
-  { id: "demo:5", name: "Archive", initials: "AR", status: "idle" },
-  {
-    id: "demo:6",
-    name: "Newsletter",
-    initials: "NL",
-    status: "building",
-    detail: { tasksDone: 1, tasksTotal: 4 },
-  },
-  { id: "demo:7", name: "Brand Kit", initials: "BK", status: "idle" },
-  {
-    id: "demo:8",
-    name: "Support Inbox",
-    initials: "SI",
-    status: "waiting",
-    detail: { note: "needs a decision" },
-  },
-  { id: "demo:9", name: "Analytics", initials: "AN", status: "done" },
-];
+// A DEMO fleet — Chad's real product names (demo-fleet.ts), shown while the
+// Demo switch below is on and there is nothing real to show. It exists so the
+// screen can be LOOKED at before any projects exist. Nothing here reaches the
+// server, and a real fleet always wins — EXCEPT while the filmed demo routine
+// is driving: on camera the scripted fleet IS the show, whatever the real one
+// is doing (demo-store, Chad 2026-08-28). The routine only ever plays the
+// fleet level, so a drilled stack still shows its own dots.
+const demo = useDemoStore();
+const isRoutineDriving = computed(
+  () => demo.routineNodes !== null && stack.value.length === 0,
+);
 
 const realNodes = computed(() => level.value.nodes.value);
-const displayNodes = computed<SceneNode[]>(() =>
-  ui.nodesDemo && realNodes.value.length === 0
-    ? DEMO_NODES
-    : [...realNodes.value],
+const displayNodes = computed<SceneNode[]>(() => {
+  if (isRoutineDriving.value) return [...demo.routineNodes!];
+  return ui.nodesDemo && realNodes.value.length === 0
+    ? demoFleetNodes(demo.projects)
+    : [...realNodes.value];
+});
+const sceneMessages = computed(() =>
+  isRoutineDriving.value ? demo.routineMessages : level.value.messages.value,
 );
-const sceneMessages = computed(() => level.value.messages.value);
 
 /** The crumbs, outermost first. Empty out on the fleet. */
 const trail = computed(() => stack.value.map((entry) => entry.label));

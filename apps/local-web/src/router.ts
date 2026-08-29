@@ -30,6 +30,13 @@ export function createAppRouter() {
         component: () => import("./views/WorkspaceView.vue"),
       },
       {
+        // The film kit: write and pre-record the demo takes "What's up
+        // Pacino" plays. A routed surface like /sessions, inside the shell.
+        path: "/demo-scripts",
+        name: "demo-scripts",
+        component: () => import("./views/DemoScriptsView.vue"),
+      },
+      {
         // The session library (Home | Chat | Sessions). Scope rides the query:
         // `?workspace=<id>` lists that room's sessions; bare = everything.
         path: "/sessions",

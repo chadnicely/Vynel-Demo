@@ -12,6 +12,7 @@ import {
 } from "../components/voice/voice-stage-view.js";
 import VoiceStage from "../components/voice/VoiceStage.vue";
 import DisplayDockMiniRow from "../components/display/DisplayDockMiniRow.vue";
+import { readDemoArmedFlag } from "../demo/demo-armed-flag.js";
 import { useDisplayWidgets } from "../composables/display/use-display-widgets.js";
 import { displayDockCards } from "../composables/display/display-dock-cards.js";
 import { useDisplayDockMode } from "../composables/display/use-display-dock-mode.js";
@@ -148,6 +149,10 @@ function handleSessionEnded(): void {
 }
 
 function handleWake(command: string, turnWatchdogMs?: number): void {
+  // Demo Mode armed (the RAW flag — this webview's Pinia is not the app's):
+  // the take belongs to the app window, which hears `show-display` and runs
+  // the routine. Starting a session here would listen to, and answer, the film.
+  if (readDemoArmedFlag()) return;
   isMuted.value = false;
   closedByUser = false;
   isConversationInHand.value = true;

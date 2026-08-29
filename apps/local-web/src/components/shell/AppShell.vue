@@ -91,6 +91,8 @@ import { useCurrentUser } from "../../composables/users/use-current-user.js";
 import { useSessionActivityFeed } from "../../composables/activity/use-session-activity-feed.js";
 import { useVoiceChatStatus } from "../../composables/sessions/use-voice-chat-status.js";
 import { useSessionsNavigation } from "../../composables/sessions/use-sessions-navigation.js";
+import { useDemoRoutine } from "../../composables/demo/use-demo-routine.js";
+import { useDemoStore } from "../../stores/demo-store.js";
 import { useDisplayToggle } from "../../composables/display/use-display-toggle.js";
 import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
 import { useViewMode } from "../../composables/shell/use-view-mode.js";
@@ -639,6 +641,12 @@ watch(
 // the session the wake just announced.
 const { isDisplayActive, toggleDisplay, showDisplay, leaveDisplay, pickDisplay } =
   useDisplayToggle();
+
+// The filmed demo routine's sequencer — one per window, in the shell because
+// only the shell has the router and the Display switch. A wake (or the scripts
+// screen's Play) rings the demo store; this runs the take.
+const demo = useDemoStore();
+useDemoRoutine({ showDisplay, leaveDisplay });
 const displayVoice = useDisplayVoice();
 
 // The view switch's reading (Kafi, 2026-08-22) — Nodes | Display | Normal,
@@ -701,6 +709,14 @@ async function onWorkspaceScaffolded(payload: {
   ui.composerSeed = payload.brief;
 }
 
+// The Demo Videos screen asking for its voice models: leave the full view for
+// the global Voice settings canvas, which is where the download lives.
+function openVoiceSettingsFromView() {
+  ui.activateTab(GLOBAL_TAB_ID);
+  selectSection("voice-settings");
+  void router.push({ name: "chat" });
+}
+
 function runCommand(id: string) {
   switch (id) {
     case "toggle-theme":
@@ -735,6 +751,14 @@ function runCommand(id: string) {
     case "open-nodes":
       ui.activateTab(GLOBAL_TAB_ID);
       void router.push({ name: "nodes" });
+      break;
+    // The film kit (Chad, 2026-08-28): the scripts screen, and the switch
+    // that makes "What's up Pacino" run the scripted take.
+    case "open-demo-scripts":
+      void router.push({ name: "demo-scripts" });
+      break;
+    case "toggle-demo-mode":
+      demo.toggleArmed();
       break;
     case "go-chat":
       selectSurface("chat");
@@ -802,6 +826,10 @@ const paletteCommands = computed<CommandItem[]>(() => [
   { id: "go-chat", label: "Go to Chat", group: "Go" },
   { id: "go-sessions", label: "Go to Sessions", group: "Go" },
   { id: "open-nodes", label: "Go to Nodes", group: "Go", keywords: "fleet constellation projects" },
+  { id: "open-demo-scripts", label: "Demo Scripts", group: "Go", keywords: "film video routine pacino take" },
+  demo.isArmed
+    ? { id: "toggle-demo-mode", label: "Disarm Demo Mode", group: "Assistant", keywords: "film pacino routine stop" }
+    : { id: "toggle-demo-mode", label: "Arm Demo Mode", group: "Assistant", keywords: "film pacino routine wake" },
   ...workspaceOptions.value.map((w) => ({
     id: `ws:${w.id}`,
     label: w.name,
@@ -977,8 +1005,14 @@ onBeforeUnmount(() => {
         />
         <main class="canvas-wrap">
           <!-- Keyed per tab: each tab is its own view instance, so a view can
-               safely bind to its tab's shell for its whole lifetime. -->
-          <RouterView :key="ui.activeTabId" />
+               safely bind to its tab's shell for its whole lifetime.
+               `openVoiceSettings` is the film kit's one way out: it renders
+               full-screen with no menu, and its voice models live in Settings
+               (Chad, 2026-08-28). Views that don't emit it simply ignore it. -->
+          <RouterView
+            :key="ui.activeTabId"
+            @open-voice-settings="openVoiceSettingsFromView"
+          />
         </main>
       </div>
 

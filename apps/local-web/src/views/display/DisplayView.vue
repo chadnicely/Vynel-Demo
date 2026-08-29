@@ -21,6 +21,7 @@ import {
   useSpokenClauseSpike,
 } from "../../composables/display/display-orb-state.js";
 import DisplayWidgetSlot from "../../components/display/DisplayWidgetSlot.vue";
+import { useDemoStore } from "../../stores/demo-store.js";
 
 // The Display — the room you talk to. The orb IS the assistant's presence, the
 // panels are the app's own status read back at a glance, and the strip carries
@@ -85,13 +86,16 @@ async function clearBoard(): Promise<void> {
   }
 }
 
+// The filmed demo has no voice session of its own — it plays pre-recorded
+// lines — so it drives the orb through the same daemon leg a relayed line
+// uses: the assistant IS talking, and the room must burn and mouth for it
+// (Chad, 2026-08-28: "no wave form"). Off-camera this reads exactly as before.
+const demo = useDemoStore();
 const orb = computed(() =>
-  displayOrbState(
-    voice.view,
-    status.value.orbEnergy,
-    voice.isMuted,
-    voice.daemonLeg,
-  ),
+  displayOrbState(voice.view, status.value.orbEnergy, voice.isMuted, {
+    state: demo.isRoutineRunning ? "speaking" : voice.daemonLeg.state,
+    isPlayingRelayedLine: demo.isSpeakingLine || voice.daemonLeg.isPlayingRelayedLine,
+  }),
 );
 
 // Five honest states, not two. The first is the one the room does not own: the

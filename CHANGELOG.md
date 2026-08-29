@@ -9,6 +9,23 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Demo Videos — film the assistant without the latency.** A new full-screen screen (command
+  palette: "Demo Scripts") that writes, pre-records and plays a rehearsed product video, so a
+  promo reel never waits on a model mid-take. List your software and paste the real shipped
+  updates from each project; keep a bank of HUD lines filed under top-level ideas (Sales, Leads,
+  Mastermind), with an intro and a conclusion as the take's bookends; set numeric rules in plain
+  text (`leads: 300-1200`, `sales: $434-2340`) and every video rolls one figure per metric and
+  holds it for the whole take. "Create scripts" writes ten; approving one records its voice
+  through whichever voice Settings → Voice selected (ElevenLabs where connected, the local model
+  otherwise) and moves it to Ready to film.
+
+  On camera it films in two spoken parts: **"What's up Pacino"** opens the room in one of 126
+  looks, greets you, gives the evening update and waits — then **"how's our software doing"**
+  cuts once to the node screen where each product lights as its own update is spoken, and closes
+  back on the orb. Updates are marked off as they are used, so ten videos are ten different
+  scripts. Everything is client-side and off by default; arming expires by itself after six
+  hours so a filmed wake can never swallow a real one later.
+
 - **Name your assistant's wake word.** Settings → Voice now takes a custom wake name — say
   "hey Friday" (or whatever you pick) and the conversation opens. "Hey Vynel" and "hey Claude"
   always keep working beside it, and close mishearings still wake it, so an inventive name

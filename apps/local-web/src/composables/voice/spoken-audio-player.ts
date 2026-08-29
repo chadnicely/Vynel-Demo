@@ -166,6 +166,14 @@ export function observeSpokenSentenceStart(
   };
 }
 
+/** Tell those watchers a sentence just started, for audio this player did not
+ *  make. The filmed demo plays PRE-RECORDED lines from its own bank, and
+ *  without this the orb sat still through a whole take — the room has to mouth
+ *  the words whoever synthesized them (Chad, 2026-08-28: "no wave form"). */
+export function announceSpokenSentence(text: string): void {
+  for (const observe of [...sentenceStartObservers]) observe(text);
+}
+
 /** Options for the browser player. */
 export interface SpokenAudioPlayerOptions {
   /** The daemon has no speaking model loaded (503 from /voice/synthesize) —

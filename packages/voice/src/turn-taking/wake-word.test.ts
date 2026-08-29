@@ -54,6 +54,60 @@ describe('detectWakeWord', () => {
     expect(detectWakeWord('hey jervis').detected).toBe(true)
   })
 
+  // The demo-film opener (Chad, 2026-08-28): "What's up Pacino" wakes the
+  // routine on camera. The greeting is as strict as "hey" — a name must
+  // follow — so ordinary "what's up …" speech stays inert.
+  it('detects "what\'s up pacino" and its STT spellings', () => {
+    expect(detectWakeWord("What's up Pacino")).toEqual({ detected: true, command: '' })
+    expect(detectWakeWord("what's up, pacino, run the update")).toEqual({
+      detected: true,
+      command: 'run the update',
+    })
+    expect(detectWakeWord('whats up pachino').detected).toBe(true)
+    expect(detectWakeWord('wassup pacino').detected).toBe(true)
+    expect(detectWakeWord('sup pacino').detected).toBe(true)
+    // The cappuccino-class garbles tiny STT returns for an Italian surname.
+    expect(detectWakeWord("what's up puccino").detected).toBe(true)
+    expect(detectWakeWord("what's up casino").detected).toBe(true)
+  })
+
+  it('a "what\'s up" with no wake name after it stays inert', () => {
+    expect(detectWakeWord("what's up with the build").detected).toBe(false)
+    expect(detectWakeWord('whats up everybody').detected).toBe(false)
+  })
+
+  // The two halves never cross: the demo greeting beside a CLASSIC name is
+  // overheard dialogue ("What's up?" "Fine." with STT-stripped punctuation),
+  // and a classic greeting beside the common-word demo garble is TV audio.
+  it("keeps the demo greetings and the classic names apart", () => {
+    expect(detectWakeWord('whats up fine').detected).toBe(false)
+    expect(detectWakeWord("what's up claude").detected).toBe(false)
+    expect(detectWakeWord('hey casino what time is it').detected).toBe(false)
+    expect(detectWakeWord('hey pacino').detected).toBe(false)
+  })
+
+  // THE SECOND TRIGGER (Chad, 2026-08-28): the wake phrase gets the evening
+  // update, then he ASKS for the software and the second half plays. The
+  // question wakes on its own and arrives whole, so the surface can tell which
+  // follow-up was asked.
+  it('wakes on the demo follow-up questions and hands the whole question over', () => {
+    expect(detectWakeWord("How's our software doing?")).toEqual({
+      detected: true,
+      command: "How's our software doing?",
+    })
+    expect(detectWakeWord('hows the dev team doing').detected).toBe(true)
+    expect(detectWakeWord('give me the dev updates').detected).toBe(true)
+    expect(detectWakeWord("what's the development team updates").detected).toBe(true)
+    expect(detectWakeWord("what's everyone been working on").detected).toBe(true)
+  })
+
+  it('keeps the follow-ups long enough not to fire on ordinary talk', () => {
+    expect(detectWakeWord('how are you').detected).toBe(false)
+    expect(detectWakeWord('the software is fine').detected).toBe(false)
+    expect(detectWakeWord('how did the dev call go').detected).toBe(false)
+    expect(detectWakeWord('our software team is great').detected).toBe(false)
+  })
+
   it('does not fire without the wake phrase', () => {
     expect(detectWakeWord('what time is it')).toEqual({ detected: false, command: '' })
     expect(detectWakeWord('hey there how are you')).toEqual({ detected: false, command: '' })

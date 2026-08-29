@@ -1,6 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import type { DisplaySessionPhase } from "@vynel/contracts/voice/daemon-events";
+import { useDemoStore } from "../../stores/demo-store.js";
 import { useUiStore } from "../../stores/ui-store.js";
 import { useVoiceSession } from "../voice/use-voice-session.js";
 import { useVoiceDaemonLink } from "../voice/use-voice-daemon-link.js";
@@ -35,6 +36,7 @@ import type { DisplayDaemonLeg } from "./display-orb-state.js";
 
 export const useDisplayVoice = defineStore("display-voice", () => {
   const ui = useUiStore();
+  const demo = useDemoStore();
 
   /** The switch: voice is ON. Deliberately NOT `session is running` — idle
    *  silence ends the recognizer while the conversation stays the user's (the
@@ -61,6 +63,14 @@ export const useDisplayVoice = defineStore("display-voice", () => {
     ownLiveSessionId: voice.currentSessionId,
     speakThroughSession: voice.speakExternal,
     onShowDisplay: () => {
+      // Armed for filming, the wake may have landed in the DOCK's webview —
+      // this frame is the one signal the app window still gets, so it starts
+      // the routine here (the sequencer ignores a double ring). `isArmedNow`
+      // re-checks the flag's expiry, so a stale window rejoins live behavior.
+      if (demo.isArmedNow()) {
+        demo.requestRoutine();
+        return;
+      }
       showDisplayRequestCount.value += 1;
     },
     // stop_listening / the sidecar's Stop reaching the room's own session.
@@ -93,6 +103,14 @@ export const useDisplayVoice = defineStore("display-voice", () => {
   // the session rather than through the gate that exists to keep the room off
   // somebody else's conversation. Refusing it here would swallow the wake.
   function handleWake(command: string, turnWatchdogMs?: number): void {
+    // Demo Mode armed: the wake runs the FILMED routine, never a live session
+    // — a real turn would think, and the latency is what the film cuts out.
+    // The WORDS decide which half plays: the wake phrase opens a take, a
+    // question about the software shows the products.
+    if (demo.isArmedNow()) {
+      demo.requestSpokenRoutine(command);
+      return;
+    }
     beginSession(command || undefined, turnWatchdogMs);
   }
 

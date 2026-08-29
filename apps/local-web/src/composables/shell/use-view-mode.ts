@@ -31,7 +31,12 @@ export function useViewMode(isDisplayActive: ComputedRef<boolean>): ViewModeRead
     return "normal";
   });
 
-  const isFullView = computed(() => viewMode.value !== "normal");
+  // Demo Scripts is a full view WITHOUT being a switch segment: it is the film
+  // kit's admin page (Chad, 2026-08-28: no sidebar), reached from the palette,
+  // not a mode the title-bar switch offers.
+  const isFullView = computed(
+    () => viewMode.value !== "normal" || route.name === "demo-scripts",
+  );
 
   return { viewMode, isFullView };
 }

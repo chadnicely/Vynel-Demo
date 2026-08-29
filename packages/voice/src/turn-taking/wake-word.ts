@@ -28,10 +28,37 @@ const WAKE_NAME =
 // "fine" in the name list they'd fire on the very common "okay, fine …".
 const WAKE_GREETING = 'hey|hi|hello|yo'
 
+// The demo-film wake — "What's up Pacino" (Chad, 2026-08-28) — kept as its OWN
+// greeting × name pairing, never crossed with the lists above: "what's up"
+// beside the classic names would fire on overheard dialogue a tiny STT strips
+// punctuation from ("What's up?" "Fine." → "whats up fine"), and "casino" (a
+// pacino garble AND a common word) beside "hey" would fire on TV audio. Each
+// side widens only the other's demo half.
+const DEMO_WAKE_NAME = 'pacino|pachino|pacheeno|patchino|puccino|pucino|casino'
+const DEMO_WAKE_GREETING = "what'?s[\\s,]+up|wass?up|whassup|sup"
+
+// THE SECOND TRIGGER (Chad, 2026-08-28). On camera the film is a
+// conversation: the wake phrase gets the evening update, and then he ASKS for
+// the software — "how's our software doing", "how's the dev team doing" — and
+// the second half plays. Those are whole questions, not a name, so they wake
+// on their own; they are deliberately long and specific, because a two-word
+// trigger here would fire on ordinary talk near an always-on microphone.
+// The whole question survives as the command, so the surface that answers can
+// tell WHICH follow-up was asked.
+const DEMO_FOLLOWUP = [
+  "how(?:'?s| is| are)[\\s,]+(?:our|the|my)[\\s,]+(?:software|dev|development|dev team|development team|build team|crew|fleet|projects?)",
+  "how(?:'?s| is| are)[\\s,]+(?:the[\\s,]+)?(?:dev|development)[\\s,]+(?:team|updates?)",
+  "what(?:'?s| is)[\\s,]+(?:the[\\s,]+)?(?:dev|development|software|product)[\\s,]+(?:team[\\s,]+)?(?:updates?|news|doing)",
+  "give me[\\s,]+(?:the[\\s,]+)?(?:dev|development|software)[\\s,]+updates?",
+  "what(?:'?s| is)[\\s,]+(?:everyone|the team|the crew)[\\s,]+(?:been[\\s,]+)?(?:up to|working on|building)",
+].join('|')
+
+const DEMO_FOLLOWUP_PATTERN = new RegExp(`^[\\s,.!?-]*(?:${DEMO_FOLLOWUP})\\b`, 'i')
+
 // greeting + separator + a wake-name token, anchored at the start. `/i` covers
 // casing; the trailing class eats the punctuation STT leaves after the name.
 const WAKE_PATTERN = new RegExp(
-  `^[\\s,.!?-]*(?:${WAKE_GREETING})[\\s,]+(?:${WAKE_NAME})\\b[\\s,.!?:-]*`,
+  `^[\\s,.!?-]*(?:(?:${WAKE_GREETING})[\\s,]+(?:${WAKE_NAME})|(?:${DEMO_WAKE_GREETING})[\\s,]+(?:${DEMO_WAKE_NAME}))\\b[\\s,.!?:-]*`,
   'i',
 )
 
@@ -55,6 +82,11 @@ export function detectWakeWord(
   transcript: string,
   options: DetectWakeWordOptions = {},
 ): WakeWordResult {
+  // The follow-up question wakes as itself and is handed over WHOLE — nothing
+  // is peeled off, because the words are the request.
+  if (DEMO_FOLLOWUP_PATTERN.test(transcript)) {
+    return { detected: true, command: transcript.trim() }
+  }
   const match = transcript.match(WAKE_PATTERN)
   if (match !== null) {
     // Slice the ORIGINAL (not a normalized copy) so the command keeps its casing.
