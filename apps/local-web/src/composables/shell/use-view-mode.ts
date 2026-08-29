@@ -12,6 +12,8 @@ export interface ViewModeReading {
    *  the Display ARE full views (Kafi, 2026-08-22: picking one opens it full,
    *  no separate expander); the normal view never is. */
   readonly isFullView: ComputedRef<boolean>;
+  /** Admin: no workspace navigation, but the menu row stays. */
+  readonly isAdminView: ComputedRef<boolean>;
 }
 
 // ONE derivation of the view mode, from state that already exists — the route
@@ -31,12 +33,14 @@ export function useViewMode(isDisplayActive: ComputedRef<boolean>): ViewModeRead
     return "normal";
   });
 
-  // Demo Scripts is a full view WITHOUT being a switch segment: it is the film
-  // kit's admin page (Chad, 2026-08-28: no sidebar), reached from the palette,
-  // not a mode the title-bar switch offers.
-  const isFullView = computed(
-    () => viewMode.value !== "normal" || route.name === "demo-scripts",
-  );
+  // FULL means chrome-less — the room with the title bar floating in the
+  // corner. Only the switch's own modes go there.
+  const isFullView = computed(() => viewMode.value !== "normal");
 
-  return { viewMode, isFullView };
+  // Admin (the film kit) is an ORDINARY page — same chrome as every other
+  // screen (Chad, 2026-08-28, reversing the earlier "no sidebar"). This flag
+  // exists only so the title bar's Admin link can read as the current page.
+  const isAdminView = computed(() => route.name === "demo-scripts");
+
+  return { viewMode, isFullView, isAdminView };
 }

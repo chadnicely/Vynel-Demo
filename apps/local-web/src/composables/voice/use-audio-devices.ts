@@ -1,4 +1,4 @@
-import { onScopeDispose, readonly, ref, shallowRef } from "vue";
+import { onScopeDispose, ref, shallowRef } from "vue";
 import type { AudioDeviceDirection } from "@vynel/contracts/voice/audio-devices";
 
 // The microphones and speakers THIS browser can offer, as a live list.
@@ -23,6 +23,9 @@ export interface AudioDevices {
   readonly outputs: readonly AudioDeviceOption[];
   /** True while the browser is withholding names for want of permission. */
   readonly labelsHidden: boolean;
+  /** How many audio entries the browser returned, usable or not — the number
+   *  an empty picker needs in order to explain itself. */
+  readonly seen: number;
   readonly unsupported: boolean;
   refresh(): Promise<void>;
   /** Ask for the microphone once, purely to unlock the labels, then release
@@ -43,13 +46,20 @@ function isDefaultPseudoDevice(device: MediaDeviceInfo): boolean {
   return device.deviceId === "default" || device.deviceId === "communications";
 }
 
+/** A device the picker cannot offer: no id to bind, or no name to show. Both
+ *  are what a page WITHOUT microphone permission gets back — the browser
+ *  withholds them until it has been allowed once. */
+function isUnusable(device: MediaDeviceInfo): boolean {
+  return device.deviceId === "" || device.label === "";
+}
+
 function toOptions(
   devices: readonly MediaDeviceInfo[],
   direction: AudioDeviceDirection,
 ): AudioDeviceOption[] {
   return devices
     .filter((device) => device.kind === DIRECTION_KIND[direction])
-    .filter((device) => !isDefaultPseudoDevice(device))
+    .filter((device) => !isDefaultPseudoDevice(device) && !isUnusable(device))
     .map((device) => ({ deviceId: device.deviceId, name: device.label }));
 }
 
@@ -57,6 +67,7 @@ export function useAudioDevices(): AudioDevices {
   const inputs = shallowRef<readonly AudioDeviceOption[]>([]);
   const outputs = shallowRef<readonly AudioDeviceOption[]>([]);
   const labelsHidden = ref(false);
+  const seen = ref(0);
   const media = navigator.mediaDevices as MediaDevices | undefined;
   const unsupported = media === undefined || typeof media.enumerateDevices !== "function";
 
@@ -73,6 +84,7 @@ export function useAudioDevices(): AudioDevices {
       return;
     }
     const audio = devices.filter((device) => device.kind !== "videoinput");
+    seen.value = audio.length;
     labelsHidden.value = audio.length > 0 && audio.every((device) => device.label === "");
     inputs.value = toOptions(audio, "input");
     outputs.value = toOptions(audio, "output");
@@ -105,7 +117,10 @@ export function useAudioDevices(): AudioDevices {
       return outputs.value;
     },
     get labelsHidden() {
-      return readonly(labelsHidden).value;
+      return labelsHidden.value;
+    },
+    get seen() {
+      return seen.value;
     },
     unsupported,
     refresh,

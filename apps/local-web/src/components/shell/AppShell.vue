@@ -654,7 +654,7 @@ const displayVoice = useDisplayVoice();
 // the window. In full view the chrome steps out: the title bar is its corner
 // cluster, the sidebar and strip are gone, and the view's own top bar leaves
 // the cluster room on the right (`--chrome-inset-right`, set below).
-const { viewMode, isFullView } = useViewMode(isDisplayActive);
+const { viewMode, isFullView, isAdminView } = useViewMode(isDisplayActive);
 
 // "Normal" is wherever the canvas was before the view took it: the room hands
 // the tab its previous view back, the Nodes screen returns to the global chat
@@ -663,7 +663,7 @@ const { viewMode, isFullView } = useViewMode(isDisplayActive);
 // straight back as the chat route lands (review, 2026-08-22).
 function returnToNormalView() {
   if (viewMode.value === "display") leaveDisplay();
-  else if (viewMode.value === "nodes") selectSurface("chat");
+  else if (viewMode.value === "nodes" || isAdminView.value) selectSurface("chat");
 }
 
 // The overlay's own switch must never outlive the overlay. It can be left ON
@@ -921,6 +921,7 @@ onBeforeUnmount(() => {
       :display-on="displayVoice.ownsVoice"
       :view-mode="viewMode"
       :full-view="isFullView"
+      :admin-on="isAdminView"
       @command="runCommand"
       @menus-open="areTitleBarMenusOpen = $event"
     />

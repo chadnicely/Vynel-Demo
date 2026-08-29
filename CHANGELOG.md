@@ -9,6 +9,19 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Choose your microphone and speaker.** Settings → Voice now has a Devices group: pick which
+  microphone Vynel hears you through and which speaker it answers from, with a Test button that
+  speaks one line through the speaker you picked so you can confirm it by ear. Your pick is saved
+  by device name, so it still means something on another machine, and a device that is later
+  unplugged is shown as "not connected" rather than quietly reverting — audio falls back to the
+  system default so nothing ever goes silent. One honest limit, stated on the screen: the
+  browser's own speech recognition offers no way to choose a microphone, so it always uses your
+  system default; the pick applies to the wake word and to cloud hearing.
+
+- **Admin is one click away.** The film kit had no door of its own — it was reachable only from
+  the command palette or by typing the address. The title bar now carries an Admin link right
+  after View, and the menu row stays put once you are inside, so there is always a way back.
+
 - **Demo Videos — film the assistant without the latency.** A new full-screen screen (command
   palette: "Demo Scripts") that writes, pre-records and plays a rehearsed product video, so a
   promo reel never waits on a model mid-take. List your software and paste the real shipped

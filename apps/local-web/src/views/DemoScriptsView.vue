@@ -13,8 +13,9 @@ import { rollTakeMetrics } from "../demo/demo-rules.js";
 // product does; Update Samples is the BANK of sentences every take is built
 // from; The Take writes one and rehearses it.
 //
-// It renders as a FULL view (use-view-mode) — no sidebar, no tab strip.
-// Everything is client-only (demo-store); nothing reaches the database.
+// It renders as an ORDINARY page — the same chrome every other screen has
+// (Chad, 2026-08-28). Everything is client-only (demo-store); nothing reaches
+// the database.
 
 type FilmTab = "software" | "samples" | "rules" | "scripts";
 

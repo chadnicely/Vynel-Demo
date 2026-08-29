@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
+  PhBroadcast as Broadcast,
   PhBrowsers as Browsers,
   PhCommand as Command,
   PhCpu as Cpu,
+  PhFilmSlate as FilmSlate,
   PhDiamondsFour as DiamondsFour,
   PhFolderPlus as FolderPlus,
   PhGithubLogo as GithubLogo,
   PhGraph as Graph,
   PhInfo as Info,
+  PhLayout as Layout,
   PhList as List,
   PhListChecks as ListChecks,
   PhMinus as Minus,
@@ -17,6 +20,7 @@ import {
   PhSidebarSimple as PanelLeft,
   PhPower as Power,
   PhGearFine as Settings2,
+  PhShareNetwork as ShareNetwork,
   PhSpeakerHigh as SpeakerHigh,
   PhSquare as Square,
   PhSun as Sun,
@@ -25,7 +29,6 @@ import {
 } from "@phosphor-icons/vue";
 import { ClaudeMark, DropdownMenu } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
-import ViewModeSwitch from "./ViewModeSwitch.vue";
 import type { ViewMode } from "../../composables/shell/use-view-mode.js";
 import { useWindowControls } from "../../composables/shell/use-window-controls.js";
 import { shortcutHint } from "../../utils/shortcut-label.js";
@@ -61,10 +64,18 @@ const props = withDefaults(
   viewMode?: ViewMode;
   /** The view fills the window — the bar is its corner cluster only. */
   fullView?: boolean;
+  /** Admin is the screen on show — the link reads as the current page. */
+  adminOn?: boolean;
   }>(),
   // Explicit, not merely absent: Vue casts an unpassed boolean prop to false,
   // which would silently strip the toggle from a bar that never opted out.
-  { showsTasksToggle: true, displayOn: false, viewMode: "normal", fullView: false },
+  {
+    showsTasksToggle: true,
+    displayOn: false,
+    viewMode: "normal",
+    fullView: false,
+    adminOn: false,
+  },
 );
 
 const emit = defineEmits<{
@@ -165,6 +176,29 @@ const menus = computed<{ label: string; items: MenuItemModel[] }[]>(() => [
         icon: props.theme === "dark" ? Sun : Moon,
       },
       { id: "sep-5", kind: "separator" },
+      { id: "sep-6", kind: "separator" },
+      {
+        id: "open-nodes",
+        kind: "checkbox",
+        label: "Nodes",
+        checked: props.viewMode === "nodes",
+        icon: ShareNetwork,
+      },
+      {
+        id: "view-display",
+        kind: "checkbox",
+        label: "Display",
+        checked: props.viewMode === "display",
+        icon: Broadcast,
+      },
+      {
+        id: "view-normal",
+        kind: "checkbox",
+        label: "Normal view",
+        checked: props.viewMode === "normal",
+        icon: Layout,
+      },
+      { id: "sep-7", kind: "separator" },
       {
         id: "command-palette",
         label: "Command palette",
@@ -181,14 +215,6 @@ function onMenuCommand(id: string) {
   if (id === "quit") controls.close();
   else emit("command", id);
 }
-
-// Each segment is a command the shell already knows — Nodes rides the same
-// `open-nodes` the title-bar word used to send.
-const VIEW_COMMANDS: Record<ViewMode, string> = {
-  nodes: "open-nodes",
-  display: "view-display",
-  normal: "view-normal",
-};
 
 // Over the Display the corner cluster reads in the Display's own palette —
 // the app's chrome greys would vanish into its ground (or, in the light theme,
@@ -233,6 +259,20 @@ const wearsDisplayPalette = computed(() => props.fullView && props.viewMode === 
             </button>
           </template>
         </DropdownMenu>
+
+        <!-- Admin is a DOOR, not a menu (Chad, 2026-08-28: "just take me into
+             admin"): one click, no dropdown. It sits after View and rides the
+             command the palette already sends. -->
+        <button
+          type="button"
+          class="flex items-center gap-1 rounded-sm px-2 py-0.5 text-[12px] text-ink-2 transition hover:bg-row-hover hover:text-ink-1"
+          :class="props.adminOn ? 'bg-row-active text-ink-1' : ''"
+          :aria-current="props.adminOn ? 'page' : undefined"
+          @click="emit('command', 'open-demo-scripts')"
+        >
+          <FilmSlate :size="13" />
+          Admin
+        </button>
       </nav>
 
       <!-- Center: pure drag region — the canvas's bar carries nothing here
@@ -240,18 +280,6 @@ const wearsDisplayPalette = computed(() => props.fullView && props.viewMode === 
            you are and what's live). -->
       <div class="flex-1" data-tauri-drag-region />
     </template>
-
-    <!-- The view switch (Kafi, 2026-08-22): Nodes | Display | Normal, first of
-         the right cluster, just before the provider mark. Its Display segment
-         carries what the Broadcast glyph used to — the room, and with it the
-         microphone. -->
-    <ViewModeSwitch
-      class="mr-2"
-      :mode="props.viewMode"
-      :display-live="props.displayOn"
-      :full-view="props.fullView"
-      @pick="(mode) => emit('command', VIEW_COMMANDS[mode])"
-    />
 
     <!-- The provider mark (Kafi, 2026-08-18): whose engine this machine runs
          on — the Claude account popup's door. Identity coral, never gold

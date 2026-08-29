@@ -410,37 +410,6 @@ onBeforeUnmount(() => {
 
     <div v-show="ui.nodesMode === 'nodes'" ref="stage" class="stage" />
 
-    <!-- Always reachable, fleet or no fleet. Theme decides whether this screen
-         borrows the Display's colour; Demo puts a fabricated fleet up so the
-         screen can be looked at before any projects exist. Neither touches the
-         node STATUS colours, and a real fleet always beats the demo. -->
-    <nav
-      v-if="ui.nodesMode === 'nodes'"
-      class="view-switches"
-      aria-label="View"
-    >
-      <button
-        type="button"
-        class="layout-btn"
-        :class="{ on: ui.nodesThemed }"
-        :aria-pressed="ui.nodesThemed"
-        data-testid="nodes-theme-toggle"
-        @click="ui.toggleNodesThemed()"
-      >
-        Theme
-      </button>
-      <button
-        type="button"
-        class="layout-btn"
-        :class="{ on: ui.nodesDemo }"
-        :aria-pressed="ui.nodesDemo"
-        data-testid="nodes-demo-toggle"
-        @click="ui.toggleNodesDemo()"
-      >
-        Demo
-      </button>
-    </nav>
-
     <NodesGrid
       v-if="ui.nodesMode === 'grid'"
       :nodes="displayNodes"

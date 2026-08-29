@@ -63,4 +63,16 @@ describe("useViewMode", () => {
     isDisplayActive.value = false;
     expect(reading.isFullView.value).toBe(false);
   });
+
+  // Admin is an ordinary page — it never goes full, so every other screen's
+  // chrome (menu row, sidebar, tabs) stays exactly as it is.
+  it("admin is an ordinary page — never a full view", async () => {
+    const { reading, router } = await mountReading("/chat");
+    expect(reading.isAdminView.value).toBe(false);
+
+    await router.push("/demo-scripts");
+    expect(reading.isAdminView.value).toBe(true);
+    expect(reading.isFullView.value).toBe(false);
+    expect(reading.viewMode.value).toBe("normal");
+  });
 });

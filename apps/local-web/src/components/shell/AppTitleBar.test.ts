@@ -3,7 +3,6 @@ import { mount } from "@vue/test-utils";
 import { DropdownMenu } from "@vynel/ui";
 import type { MenuItemModel } from "@vynel/ui";
 import AppTitleBar from "./AppTitleBar.vue";
-import ViewModeSwitch from "./ViewModeSwitch.vue";
 
 function mountTitleBar(overrides: Record<string, unknown> = {}) {
   return mount(AppTitleBar, {
@@ -39,12 +38,12 @@ describe("AppTitleBar", () => {
   // test: correct expectation — the Nodes word (2026-08-15) left the menu row
   // on 2026-08-22 (the view switch's Nodes segment is its one door) and the
   // Settings menu joined, between Vynel and View (Kafi).
-  it("renders the three menus and the window controls", () => {
+  it("renders the four menus and the window controls", () => {
     const wrapper = mountTitleBar();
     const menuLabels = wrapper
       .findAll("nav button")
       .map((b) => b.text());
-    expect(menuLabels).toEqual(["Vynel", "Settings", "View"]);
+    expect(menuLabels).toEqual(["Vynel", "Settings", "View", "Admin"]);
 
     for (const label of ["Minimize", "Maximize", "Close"]) {
       expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(true);
@@ -60,44 +59,61 @@ describe("AppTitleBar", () => {
     // the chat header and the tree already say where you are.
     // test: correct expectation — was "VynelViewNodes" until the Nodes word
     // became the switch's icon and Settings joined (2026-08-22).
-    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelSettingsView");
+    expect(wrapper.text().replace(/\s+/g, "")).toBe("VynelSettingsViewAdmin");
   });
 
-  // The view switch (Kafi, 2026-08-22): Nodes | Display | Normal, just before
-  // the provider mark. Nodes rides the same command the old word sent.
-  it("the view switch commands open-nodes / view-display / view-normal", async () => {
-    const wrapper = mountTitleBar({ viewMode: "nodes" });
-    await wrapper.get('[aria-label="Nodes"]').trigger("click");
-    await wrapper.get('[aria-label="Display"]').trigger("click");
-    await wrapper.get('[aria-label="Normal view"]').trigger("click");
-    expect(wrapper.emitted("command")).toEqual([
-      ["open-nodes"],
-      ["view-display"],
-      ["view-normal"],
+  // The demo kit was reachable only by command palette or a typed URL. Admin
+  // is its visible door — the surfaces you run the product FROM — and it sends
+  // the same command the palette already sent.
+  it("opens Admin on one click — a door, not a dropdown", async () => {
+    const wrapper = mountTitleBar();
+    const admin = wrapper.findAll("nav button").find((b) => b.text() === "Admin")!;
+
+    await admin.trigger("click");
+
+    expect(wrapper.emitted("command")).toEqual([["open-demo-scripts"]]);
+  });
+
+  // Admin is an ordinary page: the menu row is exactly what every other
+  // screen shows, with Admin beside it.
+  it("keeps the whole menu row on Admin — it is a page like any other", () => {
+    const wrapper = mountTitleBar({ adminOn: true });
+
+    expect(wrapper.findAll("nav button").map((b) => b.text())).toEqual([
+      "Vynel",
+      "Settings",
+      "View",
+      "Admin",
     ]);
   });
 
-  it("sits just before the provider mark, reading the mode and the voice", () => {
-    const wrapper = mountTitleBar({ viewMode: "display", displayOn: true });
-    const switchEl = wrapper.getComponent(ViewModeSwitch);
-    expect(switchEl.props()).toMatchObject({
-      mode: "display",
-      displayLive: true,
-      fullView: false,
-    });
-    expect(switchEl.element.nextElementSibling?.getAttribute("aria-label")).toBe(
-      "Claude account",
-    );
+  it("marks Admin as the current page while it is the screen on show", () => {
+    expect(
+      mountTitleBar({ adminOn: true })
+        .findAll("nav button")
+        .find((b) => b.text() === "Admin")!
+        .attributes("aria-current"),
+    ).toBe("page");
   });
 
-  // Full view: the bar is its corner cluster — no mark, no menus, no tasks
-  // glyph — floating over the view's own top strip.
+  // ONE voice control replaced the three-glyph switch (Chad, 2026-08-28);
+  // the modes it carried are words in the View menu now.
+  it("offers the view modes as words in the View menu", () => {
+    const ids = viewMenuItems(mountTitleBar({ viewMode: "nodes" })).map((item) => item.id);
+    expect(ids).toContain("open-nodes");
+    expect(ids).toContain("view-display");
+    expect(ids).toContain("view-normal");
+  });
+
   it("collapses to the corner cluster in full view", () => {
     const wrapper = mountTitleBar({ viewMode: "nodes", fullView: true });
     expect(wrapper.find("nav").exists()).toBe(false);
     expect(wrapper.find('[aria-label="Toggle tasks"]').exists()).toBe(false);
     expect(wrapper.text().replace(/\s+/g, "")).toBe("");
-    for (const label of ["Nodes", "Display", "Normal view", "Claude account", "Minimize", "Maximize", "Close"]) {
+    // The cluster is identity plus the window controls: the view glyphs
+    // became words in the View menu, and the voice needs no button — the
+    // daemon's wake leg listens on its own.
+    for (const label of ["Claude account", "Minimize", "Maximize", "Close"]) {
       expect(wrapper.find(`[aria-label="${label}"]`).exists()).toBe(true);
     }
     expect(wrapper.classes()).toContain("absolute");

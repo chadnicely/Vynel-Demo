@@ -4,6 +4,7 @@ import { PhPlay as Play, PhSpeakerHigh as SpeakerHigh } from "@phosphor-icons/vu
 import type { VoiceReloadResponse } from "@vynel/contracts/voice/voice-reload";
 import { useReloadVoice } from "../../composables/voice/use-reload-voice.js";
 import { createSpokenAudioPlayer } from "../../composables/voice/spoken-audio-player.js";
+import { playSpeakerTest } from "../../composables/voice/speaker-test-tone.js";
 import type { LocalModelStatusResponse } from "@vynel/contracts/models/local-models-http";
 import {
   LOCAL_STT_MODEL_IDS,
@@ -22,6 +23,7 @@ import LocalModelCard from "../models/LocalModelCard.vue";
 import CloudVoicesSettings from "../voice/CloudVoicesSettings.vue";
 import HearingSourceSettings from "../voice/HearingSourceSettings.vue";
 import WakeWordSettings from "../voice/WakeWordSettings.vue";
+import AudioDeviceSettings from "../voice/AudioDeviceSettings.vue";
 import SectionHeader from "./SectionHeader.vue";
 
 // Settings → Voice: the models Vynel speaks and hears with — which are on this
@@ -92,6 +94,13 @@ function savePick(patch: Parameters<typeof updatePreferences.mutate>[0]) {
     onSuccess: () =>
       reloadVoice.mutate(undefined, { onSuccess: (outcome) => (lastReload.value = outcome) }),
   });
+}
+
+// A chime made in the browser, NOT a spoken line: the spoken player reaches
+// the voice daemon, so "which speaker?" used to fail whenever the daemon was
+// down — which is exactly when someone is in here checking their audio.
+function testSpeaker(deviceId: string | undefined) {
+  void playSpeakerTest(deviceId);
 }
 
 const applyNote = computed(() => {
@@ -237,6 +246,17 @@ async function preview() {
           :stt-source="sttSource"
           :saving="updatePreferences.isPending.value"
           @save="savePick"
+        />
+      </section>
+
+      <section class="flex flex-col gap-2">
+        <h3 class="m-0 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Devices</h3>
+        <AudioDeviceSettings
+          :input-name="preferences?.voiceInputDeviceName ?? null"
+          :output-name="preferences?.voiceOutputDeviceName ?? null"
+          :saving="updatePreferences.isPending.value"
+          @save="savePick"
+          @test="testSpeaker"
         />
       </section>
 
