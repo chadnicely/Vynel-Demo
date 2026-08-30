@@ -2,7 +2,7 @@ import { watch } from "vue";
 import { useRouter } from "vue-router";
 import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
 import { useDemoStore, DEMO_LINE_GAP_SECONDS } from "../../stores/demo-store.js";
-import { pickDemoGreeting } from "../../demo/demo-script-writer.js";
+import { DEMO_CONVERSATION_REPLIES } from "../../demo/demo-conversation.js";
 
 // The filmed routine, beat by beat (Chad, 2026-08-28): wake → the Display
 // wakes in a re-rolled look and speaks one greeting → the node screen, in the
@@ -56,21 +56,22 @@ export function useDemoRoutine(options: {
       // hello again mid-film would break it in two.
       const opensTheVideo = demo.requestedPart !== "software";
       if (opensTheVideo) {
+        // EXCHANGE ONE (Chad, 2026-08-29): "Hey Pacino, what's up?" is
+        // answered over the black — the slate's black hands off to ours in
+        // the same paint — and only then does the room come on. The reply
+        // replaced the scripted greeting: the film is a conversation now.
+        demo.isBlackout = true;
+        await demo.playRecordedLine(DEMO_CONVERSATION_REPLIES.opening);
+        if (!demo.isRoutineRunning) return;
         demo.randomizeLook();
         if (!ui.nodesThemed) ui.toggleNodesThemed();
         ui.nodesMode = "nodes";
         demo.resetRoutineScene();
         ui.activateTab(GLOBAL_TAB_ID);
         options.showDisplay();
+        // The reveal — the answer has landed, the screen wakes on cue.
+        demo.isBlackout = false;
         await beat(ROOM_SETTLE_MS);
-        // The take's OWN greeting, drawn when it was written — so the bank
-        // records one line rather than the whole sixteen-line pool. A take
-        // from before that carries none and still draws here.
-        await demo.playRecordedLine(
-          demo.activeScript?.greeting ?? pickDemoGreeting(Math.random),
-        );
-        if (!demo.isRoutineRunning) return;
-        await beat(CUT_BEAT_MS);
       }
 
       // The take asked for by name (a card's Demo button), else the queue's
@@ -92,13 +93,9 @@ export function useDemoRoutine(options: {
         const wantsNodes = line.surface === "nodes";
         if (wantsNodes !== onNodes) {
           if (wantsNodes) {
-            // THE HANDOFF (Chad, 2026-08-28): the orb announces the dev
-            // updates, THEN the film cuts. Spoken here rather than written
-            // into the script, so the card shows only the content he reads.
-            // The take's OWN handoff, settled when it was written — a draw
-            // here would need every intro sample pre-recorded.
-            const intro = demo.activeScript?.intro ?? demo.pickIntroLine();
-            if (intro !== null) await demo.playRecordedLine(intro);
+            // EXCHANGE TWO (Chad, 2026-08-29): "How we looking on software?"
+            // — the reply on the orb, THEN the film cuts to the products.
+            await demo.playRecordedLine(DEMO_CONVERSATION_REPLIES.software);
             if (!demo.isRoutineRunning) return;
             await router.push({ name: "nodes" });
             // The tab must not restore INTO the Display afterwards.
@@ -134,6 +131,9 @@ export function useDemoRoutine(options: {
       if (demo.requestedScriptId === null && part !== "opening") demo.advanceQueue();
     } finally {
       demo.isRoutineRunning = false;
+      // A run that ended mid-exchange-one must not leave the window black —
+      // the sign-off's own blackout is raised after this, never during.
+      demo.isBlackout = false;
       demo.requestedScriptId = null;
       // An UNARMED rehearsal has no disarm coming to clean up after it — the
       // scripted fleet must not stay parked over the real one.

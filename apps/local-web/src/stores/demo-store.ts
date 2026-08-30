@@ -45,6 +45,11 @@ import {
   readDemoArmedFlag,
   writeDemoArmedFlag,
 } from "../demo/demo-armed-flag.js";
+import {
+  DEMO_CONVERSATION_REPLIES,
+  demoReplyLines,
+  isClosingRequest,
+} from "../demo/demo-conversation.js";
 import { useUiStore } from "./ui-store.js";
 
 // Demo Mode — the filmed routine's home (Chad, 2026-08-28). Scripts are
@@ -929,7 +934,12 @@ export const useDemoStore = defineStore("demo", () => {
         : anyUnsettled
           ? [...allDemoGreetings(), ...framingLines.value]
           : settled;
-    return [...new Set([...looking, ...approved, ...spokenAround])];
+    const wanted = [...new Set([...looking, ...approved, ...spokenAround])];
+    // The conversation's three replies are spoken in EVERY take, so they are
+    // banked whenever anything else is. Left out, the first "Hey Pacino" of
+    // film day would synthesize its reply live — with the latency the film
+    // exists to cut out.
+    return wanted.length === 0 ? wanted : [...new Set([...wanted, ...demoReplyLines()])];
   }
 
   /** How far the recording has got — shown on screen, so a slow first run
@@ -1050,6 +1060,7 @@ export const useDemoStore = defineStore("demo", () => {
   function disarm(): void {
     if (!isArmed.value) return;
     isArmed.value = false;
+    isBlackout.value = false;
     writeDemoArmedFlag(false);
     bank.stop();
     isRoutineRunning.value = false;
@@ -1170,11 +1181,58 @@ export const useDemoStore = defineStore("demo", () => {
   /** What the next run plays: one half, or the take end to end. */
   const requestedPart = ref<TakePart | "whole">("whole");
 
+  async function playRecordedLine(
+    text: string,
+    surface: DemoLineSurface = "hud",
+  ): Promise<void> {
+    postToBoard(text, surface);
+    const measured = bank.durationOf(text);
+    spokenLine.value = {
+      text,
+      durationMs: measured === null ? spokenPaceMs(text) : measured * 1000,
+    };
+    isSpeakingLine.value = true;
+    try {
+      await bank.play(text);
+    } finally {
+      isSpeakingLine.value = false;
+      // A play-on-demand records the line too — the screens must see it.
+      recordedTick.value += 1;
+    }
+  }
+
+  /** The show has signed off: everything under this goes to plain black
+   *  until the next wake lifts it. Also raised for a beat at the top of a
+   *  take, so exchange one is answered over black and the room's reveal
+   *  lands AFTER the reply — the order the conversation is filmed in. */
+  const isBlackout = ref(false);
+
+  /** Exchange three — "Thanks, Pacino!". The reply plays and the show goes
+   *  to black. No report, no reveal, and never mid-take: a thank-you while
+   *  the report is still talking would speak over it. */
+  async function playClosingReply(): Promise<void> {
+    if (isRoutineRunning.value) return;
+    // The daemon's native STT stays off the microphone while we speak.
+    void fetch("/voice/session/start", { method: "POST" }).catch(() => {});
+    try {
+      await playRecordedLine(DEMO_CONVERSATION_REPLIES.closing);
+    } finally {
+      isBlackout.value = true;
+      // Whatever the next wake is, it starts a fresh video.
+      nextPart.value = "opening";
+      void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
+    }
+  }
+
   /** A spoken trigger arrived. The wake phrase starts a take at its opening;
    *  a question about the software plays the half that shows the products —
    *  and only if an opening has already been filmed, so an out-of-order
    *  question does not open a video halfway through. */
   function requestSpokenRoutine(command: string): void {
+    if (isClosingRequest(command)) {
+      void playClosingReply();
+      return;
+    }
     const wantsSoftware = isSoftwareRequest(command) && nextPart.value === "software";
     requestedScriptId.value = null;
     requestedPart.value = wantsSoftware ? "software" : "opening";
@@ -1323,22 +1381,8 @@ export const useDemoStore = defineStore("demo", () => {
     isSpeakingLine,
     spokenLine,
     routineBoard,
-    playRecordedLine: async (text: string, surface: DemoLineSurface = "hud") => {
-      postToBoard(text, surface);
-      const measured = bank.durationOf(text);
-      spokenLine.value = {
-        text,
-        durationMs: measured === null ? spokenPaceMs(text) : measured * 1000,
-      };
-      isSpeakingLine.value = true;
-      try {
-        await bank.play(text);
-      } finally {
-        isSpeakingLine.value = false;
-        // A play-on-demand records the line too — the screens must see it.
-        recordedTick.value += 1;
-      }
-    },
+    playRecordedLine,
+    isBlackout,
     stopAudio: () => bank.stop(),
     isArmed,
     arm,

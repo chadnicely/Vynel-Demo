@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The film is a conversation now.** Three exchanges, every reply
+  pre-recorded so nothing ever waits on a model: "Hey Pacino, what's up?"
+  is answered with "Everything is good, boss." over the black, and only
+  then does the room come on and give the report. "How we looking on
+  software?" gets "Let me check in with the dev log and give you a brief
+  report," then the cut to the products. "Thanks, Pacino!" gets "You're
+  welcome, boss!" — and the show fades to black, where it stays until the
+  next wake starts the next video over that same black.
+
 - **The take looks filmed.** Every figure now ARRIVES: it rolls up to itself in
   half a second, takes its colour from its topic (gold on money, its own on a
   rate), and carries the week behind it — a sparkline and one plain line,

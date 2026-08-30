@@ -347,6 +347,32 @@ describe("demo-store two-part takes", () => {
     expect(demo.requestedPart).toBe("opening");
   });
 
+  it("the sign-off ends the show instead of restarting it", async () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    const runsBefore = demo.routineRequestCount;
+    demo.requestSpokenRoutine("Thanks Pacino!");
+    // No new run — a thank-you is the third exchange, not a wake.
+    expect(demo.routineRequestCount).toBe(runsBefore);
+    // The reply's audio fails quietly under the stubbed fetch; the show
+    // still goes to black, which is the part the film depends on.
+    await vi.waitFor(() => expect(demo.isBlackout).toBe(true));
+  });
+
+  it("the next wake lifts the black and starts a fresh take", async () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    demo.finishedPart("opening");
+    demo.requestSpokenRoutine("thank you pacino");
+    await vi.waitFor(() => expect(demo.isBlackout).toBe(true));
+    // After a sign-off the conversation starts over — even a software
+    // question opens fresh rather than resuming the ended video.
+    demo.requestSpokenRoutine("how's our software doing");
+    expect(demo.requestedPart).toBe("opening");
+  });
+
   it("a software question asked out of turn opens the take instead", () => {
     const demo = useDemoStore();
     stockUpdates(demo);

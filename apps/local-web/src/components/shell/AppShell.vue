@@ -962,6 +962,9 @@ onBeforeUnmount(() => {
       :clip-number="filmSlateClip"
       @black="onFilmSlateBlack"
     />
+    <!-- The show's black: up over exchange one's reply until the reveal, and
+         raised again by the sign-off. Under the slate, over everything else. -->
+    <div v-if="demo.isBlackout" class="demo-blackout" data-testid="demo-blackout" />
     <AppTitleBar
       :theme="ui.theme"
       :nav-mode="ui.navMode"
@@ -1178,5 +1181,28 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.demo-blackout {
+  position: fixed;
+  inset: 0;
+  /* One under the film slate, so a slate's countdown still shows over it. */
+  z-index: 99;
+  background: #000;
+  /* The sign-off FADES to black like an ending; the reveal is a hard cut —
+     unmounting skips the animation, which is exactly right. */
+  animation: blackout-in 600ms ease-out;
+}
+
+@keyframes blackout-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-blackout {
+    animation: none;
+  }
 }
 </style>
