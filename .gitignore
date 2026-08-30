@@ -60,3 +60,6 @@ dist-payloads/
 
 # Diagnostic call recordings (smoke-record-mic.mts output)
 call-mic-recording-*.wav
+
+# Runtime logs from locally launched servers
+*.log
