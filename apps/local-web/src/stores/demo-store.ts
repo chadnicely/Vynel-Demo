@@ -48,7 +48,6 @@ import {
 import {
   DEMO_CONVERSATION_REPLIES,
   demoReplyLines,
-  isClosingRequest,
 } from "../demo/demo-conversation.js";
 import { useUiStore } from "./ui-store.js";
 
@@ -792,18 +791,12 @@ export const useDemoStore = defineStore("demo", () => {
       : script.lines.slice(firstNode);
   }
 
-  /** Which half the next trigger plays. The wake phrase always starts a take
-   *  at the opening; the follow-up question asks for the software half. */
-  const nextPart = ref<TakePart>("opening");
-
-  /** Does this spoken command ask for the software half? The daemon hands the
-   *  whole question over, so the words decide — anything else is the wake
-   *  phrase, which always restarts the take. */
-  function isSoftwareRequest(command: string): boolean {
-    return /\b(software|dev|development|team|crew|projects?|updates?|building|working on|up to)\b/i.test(
-      command,
-    );
-  }
+  /** Where the conversation stands. WHEN he speaks decides what plays, never
+   *  the words (Chad, 2026-08-29) — the recognizer mishears, and a misheard
+   *  follow-up restarting the video is the one thing a take cannot survive.
+   *  First trigger opens the show, second plays the software, third signs
+   *  off to black, and the fourth starts the next video. */
+  const nextPart = ref<TakePart | "closing">("opening");
 
   /** A take the user asked for BY NAME — the Demo button on a queue card
    *  (Chad, 2026-08-28). It outranks the rotation for one run, so "play this
@@ -1061,6 +1054,8 @@ export const useDemoStore = defineStore("demo", () => {
     if (!isArmed.value) return;
     isArmed.value = false;
     isBlackout.value = false;
+    // Walking off set puts the conversation back at its first exchange.
+    nextPart.value = "opening";
     writeDemoArmedFlag(false);
     bank.stop();
     isRoutineRunning.value = false;
@@ -1218,32 +1213,29 @@ export const useDemoStore = defineStore("demo", () => {
       await playRecordedLine(DEMO_CONVERSATION_REPLIES.closing);
     } finally {
       isBlackout.value = true;
-      // Whatever the next wake is, it starts a fresh video.
-      nextPart.value = "opening";
       void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
     }
   }
 
-  /** A spoken trigger arrived. The wake phrase starts a take at its opening;
-   *  a question about the software plays the half that shows the products —
-   *  and only if an opening has already been filmed, so an out-of-order
-   *  question does not open a video halfway through. */
-  function requestSpokenRoutine(command: string): void {
-    if (isClosingRequest(command)) {
+  /** A spoken trigger arrived. Whatever was said, the conversation's next
+   *  exchange plays — see `nextPart`. The command text is accepted only so
+   *  the daemon's handoff keeps its shape. */
+  function requestSpokenRoutine(_command: string): void {
+    if (nextPart.value === "closing") {
+      nextPart.value = "opening";
       void playClosingReply();
       return;
     }
-    const wantsSoftware = isSoftwareRequest(command) && nextPart.value === "software";
     requestedScriptId.value = null;
-    requestedPart.value = wantsSoftware ? "software" : "opening";
+    requestedPart.value = nextPart.value;
     routineRequestCount.value += 1;
   }
 
   /** Called by the routine once a half has played, so the next trigger knows
-   *  where it is: after an opening comes the software, and after the software
-   *  the queue moves on and the next wake starts a fresh take. */
+   *  where the conversation stands: after the opening comes the software,
+   *  and after the software the sign-off. */
   function finishedPart(part: TakePart): void {
-    nextPart.value = part === "opening" ? "software" : "opening";
+    nextPart.value = part === "opening" ? "software" : "closing";
   }
 
   function resetRoutineScene(): void {
@@ -1348,7 +1340,6 @@ export const useDemoStore = defineStore("demo", () => {
     requestedPart,
     nextPart,
     takeLines,
-    isSoftwareRequest,
     requestSpokenRoutine,
     finishedPart,
     scriptStage,

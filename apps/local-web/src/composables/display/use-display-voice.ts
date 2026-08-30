@@ -105,8 +105,8 @@ export const useDisplayVoice = defineStore("display-voice", () => {
   function handleWake(command: string, turnWatchdogMs?: number): void {
     // Demo Mode armed: the wake runs the FILMED routine, never a live session
     // — a real turn would think, and the latency is what the film cuts out.
-    // The WORDS decide which half plays: the wake phrase opens a take, a
-    // question about the software shows the products.
+    // WHEN he speaks decides which exchange plays, never the words — the
+    // store walks the conversation: open, software, sign-off.
     if (demo.isArmedNow()) {
       demo.requestSpokenRoutine(command);
       return;

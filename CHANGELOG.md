@@ -16,7 +16,9 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
   software?" gets "Let me check in with the dev log and give you a brief
   report," then the cut to the products. "Thanks, Pacino!" gets "You're
   welcome, boss!" — and the show fades to black, where it stays until the
-  next wake starts the next video over that same black.
+  next wake starts the next video over that same black. WHEN he speaks
+  decides which exchange plays, never the words: the recognizer mishears,
+  and a misheard follow-up must not restart the video.
 
 - **The take looks filmed.** Every figure now ARRIVES: it rolls up to itself in
   half a second, takes its colour from its topic (gold on money, its own on a

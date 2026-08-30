@@ -321,64 +321,41 @@ describe("demo-store two-part takes", () => {
     expect(demo.takeLines(script, "software")).toEqual([]);
   });
 
-  it("hears which half a spoken trigger is asking for", () => {
-    const demo = useDemoStore();
-    expect(demo.isSoftwareRequest("how's our software doing")).toBe(true);
-    expect(demo.isSoftwareRequest("hows the dev team doing")).toBe(true);
-    expect(demo.isSoftwareRequest("")).toBe(false);
-  });
-
-  it("the wake phrase opens a take; the question then plays the products", () => {
+  it("WHEN he speaks decides, never the words: open, software, sign-off", async () => {
     const demo = useDemoStore();
     stockUpdates(demo);
     demo.fillQueue();
 
-    // A bare wake phrase — no command — always starts at the opening.
-    demo.requestSpokenRoutine("");
+    // First trigger opens the show — whatever the recognizer heard.
+    demo.requestSpokenRoutine("complete gibberish");
     expect(demo.requestedPart).toBe("opening");
 
+    // Second trigger is the software half — even misheard.
     demo.finishedPart("opening");
-    demo.requestSpokenRoutine("how's our software doing");
+    demo.requestSpokenRoutine("unrelated nonsense");
     expect(demo.requestedPart).toBe("software");
 
+    // Third trigger signs off: no new run, the show goes to black.
     demo.finishedPart("software");
-    // ...and the next wake starts a fresh take rather than the products again.
+    const runsBefore = demo.routineRequestCount;
+    demo.requestSpokenRoutine("anything at all");
+    expect(demo.routineRequestCount).toBe(runsBefore);
+    await vi.waitFor(() => expect(demo.isBlackout).toBe(true));
+
+    // Fourth trigger starts the next video over that black.
     demo.requestSpokenRoutine("");
     expect(demo.requestedPart).toBe("opening");
   });
 
-  it("the sign-off ends the show instead of restarting it", async () => {
+  it("disarming puts the conversation back at its first exchange", () => {
     const demo = useDemoStore();
     stockUpdates(demo);
     demo.fillQueue();
-    const runsBefore = demo.routineRequestCount;
-    demo.requestSpokenRoutine("Thanks Pacino!");
-    // No new run — a thank-you is the third exchange, not a wake.
-    expect(demo.routineRequestCount).toBe(runsBefore);
-    // The reply's audio fails quietly under the stubbed fetch; the show
-    // still goes to black, which is the part the film depends on.
-    await vi.waitFor(() => expect(demo.isBlackout).toBe(true));
-  });
-
-  it("the next wake lifts the black and starts a fresh take", async () => {
-    const demo = useDemoStore();
-    stockUpdates(demo);
-    demo.fillQueue();
+    demo.arm();
     demo.finishedPart("opening");
-    demo.requestSpokenRoutine("thank you pacino");
-    await vi.waitFor(() => expect(demo.isBlackout).toBe(true));
-    // After a sign-off the conversation starts over — even a software
-    // question opens fresh rather than resuming the ended video.
-    demo.requestSpokenRoutine("how's our software doing");
-    expect(demo.requestedPart).toBe("opening");
-  });
-
-  it("a software question asked out of turn opens the take instead", () => {
-    const demo = useDemoStore();
-    stockUpdates(demo);
-    demo.fillQueue();
-    // Nothing has been filmed yet, so this cannot be the second half.
-    demo.requestSpokenRoutine("how's the dev team doing");
+    demo.disarm();
+    demo.requestSpokenRoutine("");
+    // Not the software half — a fresh film day starts at the top.
     expect(demo.requestedPart).toBe("opening");
   });
 

@@ -25,9 +25,3 @@ export function demoReplyLines(): readonly string[] {
   return Object.values(DEMO_CONVERSATION_REPLIES);
 }
 
-/** Is this spoken command the sign-off? Checked BEFORE the software match: a
- *  thank-you carries no software words, and falling through would restart the
- *  video instead of ending it. */
-export function isClosingRequest(command: string): boolean {
-  return /\b(thanks?|thank\s+you|appreciate)\b/i.test(command);
-}
