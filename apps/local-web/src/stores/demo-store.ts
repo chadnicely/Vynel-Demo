@@ -1115,6 +1115,19 @@ export const useDemoStore = defineStore("demo", () => {
    *  and mouth like it does for a live reply — the take makes no session of
    *  its own, so without it the orb sat still through a whole video. */
   const isSpeakingLine = ref(false);
+  /** The sentence being said RIGHT NOW, and how long the recording runs, so a
+   *  caption can be typed across it rather than dumped in one frame. It stays
+   *  on screen after the line ends — clearing it between lines flickered the
+   *  caption off and back on every gap. */
+  const spokenLine = ref<{ text: string; durationMs: number } | null>(null);
+
+  /** Roughly how long a sentence takes to say out loud — the fallback for a
+   *  line whose recording has not landed yet. Two and a half words a second is
+   *  the pace the demo voices actually read at. */
+  function spokenPaceMs(text: string): number {
+    const words = text.split(/\s+/).filter((word) => word.length > 0).length;
+    return Math.max(900, (words / 2.5) * 1000);
+  }
 
   /** THE BOARD (Chad, 2026-08-29): each spoken line's headline — "Sales came
    *  in · $2,300" — accumulating on the Display's side panel, newest lit, so
@@ -1182,6 +1195,7 @@ export const useDemoStore = defineStore("demo", () => {
     }));
     routineMessages.value = [];
     routineBoard.value = [];
+    spokenLine.value = null;
   }
 
   /** Hand the node screen back to the real fleet. Disarming does this too;
@@ -1191,6 +1205,7 @@ export const useDemoStore = defineStore("demo", () => {
     routineNodes.value = null;
     routineMessages.value = [];
     routineBoard.value = [];
+    spokenLine.value = null;
   }
 
   /** Light one project's dot and fire an arc from the core to it. */
@@ -1306,9 +1321,15 @@ export const useDemoStore = defineStore("demo", () => {
       return bank.durationOf(text);
     },
     isSpeakingLine,
+    spokenLine,
     routineBoard,
     playRecordedLine: async (text: string, surface: DemoLineSurface = "hud") => {
       postToBoard(text, surface);
+      const measured = bank.durationOf(text);
+      spokenLine.value = {
+        text,
+        durationMs: measured === null ? spokenPaceMs(text) : measured * 1000,
+      };
       isSpeakingLine.value = true;
       try {
         await bank.play(text);

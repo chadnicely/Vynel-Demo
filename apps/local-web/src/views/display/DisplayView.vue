@@ -21,6 +21,10 @@ import {
   useSpokenClauseSpike,
 } from "../../composables/display/display-orb-state.js";
 import DisplayWidgetSlot from "../../components/display/DisplayWidgetSlot.vue";
+import DemoCountUp from "../../components/demo/DemoCountUp.vue";
+import DemoTrendLine from "../../components/demo/DemoTrendLine.vue";
+import DemoSpokenCaption from "../../components/demo/DemoSpokenCaption.vue";
+import { figureTone } from "../../demo/demo-figure-parts.js";
 import { useDemoStore } from "../../stores/demo-store.js";
 
 // The Display — the room you talk to. The orb IS the assistant's presence, the
@@ -186,6 +190,17 @@ const boardRows = computed<DisplayPanelRow[]>(() =>
   })),
 );
 
+/** Money reads gold, a rate reads its own colour, a count keeps the room's —
+ *  the topic tints the figure and its glow, nothing else. */
+const liveTone = computed(() =>
+  liveHighlight.value === null ? null : figureTone(liveHighlight.value.value),
+);
+
+/** The camera creeps in across a take. Barely perceptible frame to frame, but
+ *  a minute of it is the difference between filmed and screen-recorded
+ *  (Chad, 2026-08-29). */
+const filming = computed(() => demo.isRoutineRunning);
+
 const LEGEND_ROWS: DisplayPanelRow[] = [
   { label: "Needs you", value: "waiting on an answer", tone: "attention" },
   { label: "Working", value: "running right now", tone: "live" },
@@ -315,7 +330,7 @@ const WIDGET_HINT = "Claude can put reports here";
         />
       </aside>
 
-      <section class="stage" data-testid="display-stage">
+      <section class="stage" :class="{ filming }" data-testid="display-stage">
         <!-- Whatever presence THIS theme asked for: the canvas orb, a
              breathing ring, bars, a dial, or nothing at all. -->
         <DisplayPresence
@@ -333,15 +348,27 @@ const WIDGET_HINT = "Claude can put reports here";
         <p v-if="!hasOrb && shape.stage === 'orb'" class="quiet">
           Orb unavailable — status panels still live
         </p>
-        <p class="caption">{{ voice.caption }}</p>
+        <DemoSpokenCaption
+          v-if="demo.spokenLine !== null"
+          :key="demo.spokenLine.text"
+          :text="demo.spokenLine.text"
+          :duration-ms="demo.spokenLine.durationMs"
+        />
+        <p v-else class="caption">{{ voice.caption }}</p>
         <div
           v-if="liveHighlight !== null"
           :key="liveHighlight.label + liveHighlight.value"
           class="stage-highlight"
+          :class="`tone-${liveTone}`"
           data-testid="stage-highlight"
         >
-          <span class="hl-value">{{ liveHighlight.value }}</span>
+          <DemoCountUp class="hl-value" :value="liveHighlight.value" />
           <span class="hl-label">{{ liveHighlight.label }}</span>
+          <DemoTrendLine
+            class="hl-trend"
+            :label="liveHighlight.label"
+            :value="liveHighlight.value"
+          />
         </div>
         <DisplayWidgetSlot
           class="stage-widgets"
@@ -505,8 +532,48 @@ const WIDGET_HINT = "Claude can put reports here";
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
-  color: var(--display-accent, #4fd8ff);
-  text-shadow: 0 0 22px var(--display-accent-faint, rgba(79, 216, 255, 0.4));
+  color: var(--figure-accent, var(--display-accent, #4fd8ff));
+  text-shadow: 0 0 26px var(--figure-glow, var(--display-accent-faint, rgba(79, 216, 255, 0.4)));
+}
+
+.hl-trend {
+  margin-top: 8px;
+  color: var(--figure-accent, var(--display-accent, #4fd8ff));
+}
+
+/* THE TOPIC'S COLOUR. Money is gold wherever the room is; a rate takes the
+   mint that reads as "a share of something"; a plain count keeps the room's
+   own accent so the palette still leads. */
+.stage-highlight.tone-money {
+  --figure-accent: #ffce6b;
+  --figure-glow: rgba(255, 206, 107, 0.34);
+}
+
+.stage-highlight.tone-rate {
+  --figure-accent: #7ef0c0;
+  --figure-glow: rgba(126, 240, 192, 0.3);
+}
+
+/* THE PUSH-IN. One slow creep across a take, held at the end — it must never
+   rubber-band back, which on camera reads as the screen breathing. */
+.stage.filming {
+  animation: stage-push-in 75s linear forwards;
+  transform-origin: 50% 46%;
+}
+
+@keyframes stage-push-in {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.07);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage.filming {
+    animation: none;
+  }
 }
 
 .hl-label {

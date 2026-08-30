@@ -35,6 +35,10 @@ import NodesFleetBar from "../components/nodes/NodesFleetBar.vue";
 import NodesGrid from "../components/nodes/NodesGrid.vue";
 import NodesRace from "../components/nodes/NodesRace.vue";
 import NodesInvitation from "../components/nodes/NodesInvitation.vue";
+import DemoCountUp from "../components/demo/DemoCountUp.vue";
+import DemoTrendLine from "../components/demo/DemoTrendLine.vue";
+import DemoSpokenCaption from "../components/demo/DemoSpokenCaption.vue";
+import { splitHeading } from "./nodes-lower-third.js";
 import {
   parseSceneNodeId,
   type SceneNodeRef,
@@ -291,6 +295,22 @@ const stage = ref<HTMLElement | null>(null);
 let scene: SceneHandle | null = null;
 
 // The prototype's three arrangements of the same fleet.
+// THE LOWER THIRD (Chad, 2026-08-29). A product's line reads as a wall of
+// small text over a star field; broadcast solves this the same way every
+// time — the name big, the claim under it.
+//
+// The name comes from the LINE, not from which node is lit. Read off the lit
+// node it vanished the instant the bullet settled — the take holds the last
+// sentence on screen through the gap, so the headline dropped out and the
+// name reappeared in the body text a size smaller, twice per product.
+const lowerThird = computed(() => {
+  const line = demo.spokenLine;
+  if (line === null) return null;
+  const names = demo.routineNodes?.map((node) => node.name) ?? [];
+  const { name, body } = splitHeading(line.text, names);
+  return { name, text: body, durationMs: line.durationMs };
+});
+
 const LAYOUTS: Array<{ id: SceneLayout; label: string }> = [
   { id: "constellation", label: "Constellation" },
   { id: "orbit", label: "Orbit" },
@@ -426,7 +446,12 @@ onBeforeUnmount(() => {
       @open-chat="openDrilledProject"
     />
 
-    <div v-show="ui.nodesMode === 'nodes'" ref="stage" class="stage" />
+    <div
+      v-show="ui.nodesMode === 'nodes'"
+      ref="stage"
+      class="stage"
+      :class="{ filming: demo.isRoutineRunning }"
+    />
 
     <NodesGrid
       v-if="ui.nodesMode === 'grid'"
@@ -487,8 +512,29 @@ onBeforeUnmount(() => {
         data-testid="nodes-highlight"
       >
         <span class="hl-label">{{ liveHighlight.label }}</span>
-        <span class="hl-value">{{ liveHighlight.value }}</span>
+        <DemoCountUp class="hl-value" :value="liveHighlight.value" />
+        <DemoTrendLine
+          class="hl-trend"
+          :label="liveHighlight.label"
+          :value="liveHighlight.value"
+        />
       </div>
+    </div>
+
+    <div
+      v-if="lowerThird !== null && demo.isRoutineRunning"
+      class="lower-third"
+      data-testid="nodes-lower-third"
+    >
+      <p v-if="lowerThird.name !== null" class="lt-name">
+        {{ lowerThird.name }}
+      </p>
+      <DemoSpokenCaption
+        :key="lowerThird.text"
+        class="nodes-caption"
+        :text="lowerThird.text"
+        :duration-ms="lowerThird.durationMs"
+      />
     </div>
   </div>
 </template>
@@ -540,6 +586,71 @@ onBeforeUnmount(() => {
 .stage {
   position: absolute;
   inset: 0;
+}
+
+/* THE PUSH-IN — matched to the Display's, so a cut between the two screens
+   does not change how the camera behaves. Held at the end: rubber-banding
+   back reads as the screen breathing. */
+.stage.filming {
+  animation: nodes-push-in 75s linear forwards;
+  transform-origin: 50% 50%;
+}
+
+@keyframes nodes-push-in {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.07);
+  }
+}
+
+/* Low and centred, clear of the layout picker. */
+.lower-third {
+  position: absolute;
+  bottom: 92px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  max-width: min(720px, 86vw);
+  padding: 14px 26px 16px;
+  border-radius: 16px;
+  /* The accent edge is what makes it read as a caption card rather than a
+     dialog that has appeared over the film. */
+  border-left: 3px solid var(--display-accent, #4fd8ff);
+  background: rgb(0 0 0 / 66%);
+  backdrop-filter: blur(8px);
+  animation: lower-third-in 380ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lt-name {
+  margin: 0;
+  color: var(--display-accent, #4fd8ff);
+  font: 700 clamp(17px, 1.9vw, 24px) var(--display-font, ui-monospace, monospace);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-shadow: 0 0 20px var(--display-glow, rgb(79 216 255 / 45%));
+}
+.nodes-caption {
+  /* One wide line under the constellation reads better than a narrow block
+     stacked over the layout picker. */
+  --caption-width: 58ch;
+}
+
+@keyframes lower-third-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage.filming,
+  .lower-third {
+    animation: none;
+  }
 }
 
 /* Top-right, clear of the layout picker at the bottom and of the fleet bar. */

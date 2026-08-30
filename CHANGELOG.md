@@ -9,6 +9,23 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The take looks filmed.** Every figure now ARRIVES: it rolls up to itself in
+  half a second, takes its colour from its topic (gold on money, its own on a
+  rate), and carries the week behind it — a sparkline and one plain line,
+  "up 24% from yesterday". The sentence being spoken types itself out under
+  the orb in time with the voice, so the eye stays with the ear. Both screens
+  creep in a little across a take, matched, so a cut between them never
+  changes how the camera behaves. The constellation half gained a broadcast
+  lower third — the product name big, its claim typed underneath.
+
+- **Grid and Race stopped looking broken.** Both wore the plain app cards on
+  the themed node screen — grey boxes in the top-left corner of a violet sky,
+  with a hairline track you could not see on camera and a runner hardcoded
+  gold whatever colour the room was. They now take the room's palette,
+  centre themselves, and Race paints how far along each project actually is
+  instead of parking everything at the start line. Untinted, both are exactly
+  what they were.
+
 - **Film day, end to end.** The Demo Videos screen became a working film set. A take now opens
   in its own browser tab, so the queue stays where you left it; it opens on a production slate —
   the clip number (boxed, in the accent, unmistakably not the countdown), a 3-second countdown,
