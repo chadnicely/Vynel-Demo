@@ -80,6 +80,10 @@ export interface DemoScript {
   readonly intro?: string | null;
   /** The closing line, same rule. */
   readonly conclusion?: string | null;
+  /** When he opened this take and read its lines (epoch ms). A deck of ten
+   *  unfamiliar takes all look alike; the mark is how he finds his place
+   *  again after walking away (Chad, 2026-08-30). Undefined = never read. */
+  readAt?: number;
   /** When this take last finished on camera (epoch ms). The list dims a played
    *  take and says when, so a run of rehearsals reads at a glance
    *  (Chad, 2026-08-29). Undefined = never played. */
@@ -722,9 +726,38 @@ export const useDemoStore = defineStore("demo", () => {
 
   function approveScript(scriptId: string): void {
     scripts.value = scripts.value.map((script) =>
-      script.id === scriptId ? { ...script, status: "approved" as const } : script,
+      script.id === scriptId
+        ? {
+            ...script,
+            status: "approved" as const,
+            // Approving THIS take is a decision about it, so it counts as a
+            // read. `approveAll` deliberately does not: waving through ten
+            // takes at once says nothing about having read any of them.
+            readAt: script.readAt ?? Date.now(),
+          }
+        : script,
     );
     void prepareAudio();
+  }
+
+  /** He opened it and looked at the lines. Stamped once — re-opening a take
+   *  must not move the date, which is what tells him when he last went
+   *  through the deck. */
+  function markScriptRead(scriptId: string): void {
+    scripts.value = scripts.value.map((script) =>
+      script.id === scriptId && script.readAt === undefined
+        ? { ...script, readAt: Date.now() }
+        : script,
+    );
+  }
+
+  /** Put one back on the pile — the mark is his, so he can take it off. */
+  function markScriptUnread(scriptId: string): void {
+    scripts.value = scripts.value.map((script) => {
+      if (script.id !== scriptId) return script;
+      const { readAt: _dropped, ...rest } = script;
+      return rest;
+    });
   }
 
   /** Approve the whole queue and record every voice in one pass (Chad,
@@ -1346,6 +1379,8 @@ export const useDemoStore = defineStore("demo", () => {
     fillQueue,
     rewriteQueue,
     approveScript,
+    markScriptRead,
+    markScriptUnread,
     approveAll,
     unapproveScript,
     unapproveAll,

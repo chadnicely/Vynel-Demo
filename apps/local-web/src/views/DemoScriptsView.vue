@@ -63,19 +63,31 @@ const queueView = ref<QueueTab>("ready");
 
 /** Ready = RECORDED. Approved-but-still-recording belongs with the waiting,
  *  because it cannot be filmed yet (Chad: green only when a demo can play). */
+/** Newest at the top, on every tab (Chad, 2026-08-30). The queue is written
+ *  in one press, so insertion order put the take he just made at the bottom
+ *  of ten. Takes written before `createdAt` sort last rather than first —
+ *  they ARE the old ones. */
+function newestFirst(list: readonly DemoScript[]): DemoScript[] {
+  return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+}
+
 const readyScripts = computed(() =>
-  demo.scripts.filter(
-    (script) =>
-      demo.scriptStage(script) === "recorded" && script.completedAt === undefined,
+  newestFirst(
+    demo.scripts.filter(
+      (script) =>
+        demo.scriptStage(script) === "recorded" && script.completedAt === undefined,
+    ),
   ),
 );
 /** The keepers — filmed and called done. Their own tab, so Ready stays the
  *  work left (Chad, 2026-08-29). */
 const completedScripts = computed(() =>
-  demo.scripts.filter((script) => script.completedAt !== undefined),
+  newestFirst(demo.scripts.filter((script) => script.completedAt !== undefined)),
 );
 const waitingScripts = computed(() =>
-  demo.scripts.filter((script) => demo.scriptStage(script) !== "recorded"),
+  newestFirst(
+    demo.scripts.filter((script) => demo.scriptStage(script) !== "recorded"),
+  ),
 );
 const shownScripts = computed(() => {
   if (queueView.value === "ready") return readyScripts.value;
@@ -105,8 +117,14 @@ function onPurposeEdited(projectId: string, event: Event): void {
 const openScripts = ref(new Set<string>());
 
 function toggleScript(scriptId: string): void {
-  if (openScripts.value.has(scriptId)) openScripts.value.delete(scriptId);
-  else openScripts.value.add(scriptId);
+  if (openScripts.value.has(scriptId)) {
+    openScripts.value.delete(scriptId);
+    return;
+  }
+  openScripts.value.add(scriptId);
+  // Opening it IS reading it — there is nothing else to do with a take on
+  // this screen (Chad, 2026-08-30).
+  demo.markScriptRead(scriptId);
 }
 
 /** Which products have their shipped list open. */
@@ -673,6 +691,14 @@ async function playWholeTake(script: DemoScript): Promise<void> {
               />
               {{ stageLabel(script) }}
             </span>
+            <span
+              v-if="script.readAt !== undefined"
+              class="read-mark"
+              :title="`Read ${playedLabel(script.readAt)}`"
+              :data-testid="`read-${script.id}`"
+            >
+              ✓ Read
+            </span>
             <span class="spacer" />
             <span v-if="runtimeLabel(script)" class="runtime">{{
               runtimeLabel(script)
@@ -767,6 +793,14 @@ async function playWholeTake(script: DemoScript): Promise<void> {
                   @click="openMenu = null; void playWholeTake(script)"
                 >
                   Hear it
+                </button>
+                <button
+                  v-if="script.readAt !== undefined"
+                  type="button"
+                  :data-testid="`unread-${script.id}`"
+                  @click="openMenu = null; demo.markScriptUnread(script.id)"
+                >
+                  Mark unread
                 </button>
                 <button
                   v-if="script.status === 'approved'"
@@ -1208,6 +1242,20 @@ textarea.bank {
   margin-left: 8px;
   color: var(--ink-3);
   font-size: 10px;
+  white-space: nowrap;
+}
+
+/* Read: quiet on purpose. It marks the ones he can skip past, so it must not
+   compete with the stage badge that says what a take still needs. */
+.read-mark {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hair);
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 

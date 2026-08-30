@@ -359,6 +359,61 @@ describe("demo-store two-part takes", () => {
     expect(demo.requestedPart).toBe("opening");
   });
 
+  it("opening a take marks it read, and re-opening keeps the first date", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    const id = demo.scripts[0]!.id;
+    expect(demo.scripts[0]!.readAt).toBeUndefined();
+
+    demo.markScriptRead(id);
+    const first = demo.scripts.find((script) => script.id === id)!.readAt;
+    expect(first).toBeTypeOf("number");
+
+    // Going back through the deck must not move the date — it is what tells
+    // him when he last read it.
+    demo.markScriptRead(id);
+    expect(demo.scripts.find((script) => script.id === id)!.readAt).toBe(first);
+  });
+
+  it("the mark comes off again", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    const id = demo.scripts[0]!.id;
+    demo.markScriptRead(id);
+    demo.markScriptUnread(id);
+    expect(demo.scripts.find((script) => script.id === id)!.readAt).toBeUndefined();
+  });
+
+  it("approving ONE take reads it; approving all of them does not", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    const [first, second] = demo.scripts;
+    demo.approveScript(first!.id);
+    expect(demo.scripts.find((s) => s.id === first!.id)!.readAt).toBeTypeOf("number");
+
+    // Waving the deck through says nothing about having read any of it.
+    demo.approveAll();
+    expect(demo.scripts.find((s) => s.id === second!.id)!.readAt).toBeUndefined();
+  });
+
+  it("a read mark survives a reload", async () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    const id = demo.scripts[0]!.id;
+    demo.markScriptRead(id);
+    const stamped = demo.scripts.find((script) => script.id === id)!.readAt;
+
+    // The queue is written to storage by a watcher.
+    await nextTick();
+    setActivePinia(createPinia());
+    const reloaded = useDemoStore();
+    expect(reloaded.scripts.find((script) => script.id === id)!.readAt).toBe(stamped);
+  });
+
   it("the Demo button still plays a take end to end", () => {
     const demo = useDemoStore();
     stockUpdates(demo);

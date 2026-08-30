@@ -9,6 +9,13 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Newest take first, and the ones you've read are marked.** The queue is
+  written in one press, so insertion order buried the take you just made at
+  the bottom of ten; every tab now leads with the most recent. Opening a
+  take stamps it Read, with the date on hover, so a deck of ten look-alike
+  cards tells you where you left off — and the mark survives a reload,
+  comes off again from the ⋯ menu, and is never claimed by Approve all.
+
 - **The film is a conversation now.** Three exchanges, every reply
   pre-recorded so nothing ever waits on a model: "Hey Pacino, what's up?"
   is answered with "Everything is good, boss." over the black, and only
