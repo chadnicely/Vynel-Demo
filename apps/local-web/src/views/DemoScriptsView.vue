@@ -238,6 +238,14 @@ async function playWholeTake(script: DemoScript): Promise<void> {
         <DemoVoicePicker />
         <button
           type="button"
+          class="primary create-scripts"
+          data-testid="demo-fill-queue"
+          @click="demo.fillQueue()"
+        >
+          Create scripts
+        </button>
+        <button
+          type="button"
           class="quiet"
           data-testid="demo-voice-settings"
           @click="emit('openVoiceSettings')"
@@ -313,14 +321,6 @@ async function playWholeTake(script: DemoScript): Promise<void> {
         @click="settingsOpen = true"
       >
         Defaults
-      </button>
-      <button
-        type="button"
-        class="primary create-scripts"
-        data-testid="demo-fill-queue"
-        @click="demo.fillQueue()"
-      >
-        Create scripts
       </button>
     </nav>
 
