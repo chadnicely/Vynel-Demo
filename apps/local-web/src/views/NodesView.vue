@@ -314,7 +314,16 @@ const lowerThird = computed(() => {
   // “VideoGeyser — one colour theme…” as body text (Chad, 2026-08-30).
   const names = demo.projects.map((project) => project.name);
   const { name, body } = splitHeading(line.text, names);
-  return { name, text: body, durationMs: line.durationMs };
+  // The voice reads the whole line, name included. The card types only the
+  // body, so it waits out the name and then paces across what is left.
+  const words = (text: string) => text.split(/s+/).filter((w) => w.length > 0).length;
+  const share = words(body) / Math.max(1, words(line.text));
+  return {
+    name,
+    text: body,
+    durationMs: line.durationMs * share,
+    startDelayMs: line.durationMs * (1 - share),
+  };
 });
 
 const LAYOUTS: Array<{ id: SceneLayout; label: string }> = [
@@ -540,6 +549,7 @@ onBeforeUnmount(() => {
         class="nodes-caption"
         :text="lowerThird.text"
         :duration-ms="lowerThird.durationMs"
+        :start-delay-ms="lowerThird.startDelayMs"
       />
     </div>
   </div>

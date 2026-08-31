@@ -8,7 +8,15 @@ import { onBeforeUnmount, ref, watch } from "vue";
 //
 // It types by WORD rather than by letter: letter-by-letter reads as a terminal
 // effect, word-by-word reads as someone talking.
-const props = defineProps<{ text: string; durationMs: number }>();
+// `startDelayMs` is for a caption that does not begin at the top of the
+// line. The constellation's card shows the product NAME as a headline and
+// types only the claim after it — but the voice says the name first, so the
+// typing has to wait for it. Pacing the short body across the whole line's
+// length ran it ahead of the narration (Chad, 2026-08-31).
+const props = withDefaults(
+  defineProps<{ text: string; durationMs: number; startDelayMs?: number }>(),
+  { startDelayMs: 0 },
+);
 
 const shown = ref("");
 let frame = 0;
@@ -39,9 +47,9 @@ function type(): void {
   // a hole under the orb at the exact moment the voice starts.
   shown.value = words[0] ?? "";
   const span = Math.max(400, props.durationMs * 0.88);
-  const startedAt = performance.now();
+  const startedAt = performance.now() + props.startDelayMs;
   const tick = (now: number) => {
-    const progress = Math.min(1, (now - startedAt) / span);
+    const progress = Math.min(1, Math.max(0, (now - startedAt) / span));
     const upTo = Math.max(1, Math.ceil(words.length * progress));
     shown.value = words.slice(0, upTo).join(" ");
     if (progress < 1) frame = requestAnimationFrame(tick);

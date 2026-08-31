@@ -55,7 +55,7 @@ type DriverState = 'asleep' | 'active' | 'in-turn' | 'relaying' | 'handed-off'
  *  updates and it jumped in before the sentence was done (Chad, 2026-08-31,
  *  at 1100ms). Two seconds of true silence is a finished thought; the
  *  thinking beat on the answer covers the extra wait on camera. */
-const FILMED_CUE_SETTLE_MS = 1900
+const FILMED_CUE_SETTLE_MS = 1500
 
 /** How long a staged take may keep the room waking on any word. */
 const FILMING_TTL_MS = 15 * 60 * 1000
