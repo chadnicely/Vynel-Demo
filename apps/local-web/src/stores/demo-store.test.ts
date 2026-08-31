@@ -414,6 +414,41 @@ describe("demo-store two-part takes", () => {
     expect(reloaded.scripts.find((script) => script.id === id)!.readAt).toBe(stamped);
   });
 
+  it("splits a take into two groups however its lines were written", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    const take = demo.scripts[0]!;
+    // The old shape, still sitting in his queue: updates, products, then two
+    // more updates. Filmed by position it cut back to the orb mid-answer.
+    take.lines = [
+      { text: "Sales came in at $1,508 today.", projectId: null, surface: "hud", sourceUpdate: null },
+      { text: "Letterman — the welcome email is in.", projectId: "letterman", surface: "nodes", sourceUpdate: null },
+      { text: "Quizforma — exports are live.", projectId: "quizforma", surface: "nodes", sourceUpdate: null },
+      { text: "Every build is green.", projectId: null, surface: "hud", sourceUpdate: null },
+      { text: "530 quiz submissions came through.", projectId: null, surface: "hud", sourceUpdate: null },
+    ];
+
+    const opening = demo.takeLines(take, "opening");
+    const software = demo.takeLines(take, "software");
+    expect(opening.every((line) => line.surface === "hud")).toBe(true);
+    expect(software.every((line) => line.surface === "nodes")).toBe(true);
+    // Nothing is dropped and nothing is said twice.
+    expect(opening.length + software.length).toBe(take.lines.length);
+  });
+
+  it("films a HUD-only take as one half", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.fillQueue();
+    const take = demo.scripts[0]!;
+    take.lines = [
+      { text: "Sales came in at $1,508 today.", projectId: null, surface: "hud", sourceUpdate: null },
+    ];
+    expect(demo.takeLines(take, "opening")).toHaveLength(1);
+    expect(demo.takeLines(take, "software")).toHaveLength(0);
+  });
+
   it("the Demo button still plays a take end to end", () => {
     const demo = useDemoStore();
     stockUpdates(demo);

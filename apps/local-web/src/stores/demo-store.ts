@@ -816,12 +816,20 @@ export const useDemoStore = defineStore("demo", () => {
   // cuts to the node screen — the same seam the routine already uses.
   function takeLines(script: DemoScript | null, part: TakePart): DemoScriptLine[] {
     if (script === null) return [];
-    const firstNode = script.lines.findIndex((line) => line.surface === "nodes");
+    // BY SURFACE, not by position (Chad, 2026-08-30). Slicing at the first
+    // product line put any update written AFTER the products into the
+    // software half — so a take filmed as updates → products → updates cut
+    // back to the orb mid-answer. Takes are written in two groups now, but
+    // every take written before that is still in his queue and still has to
+    // film correctly: he should not have to throw away a day's reading.
+    //
+    // Grouping here also means the halves are right whatever order a take was
+    // written in, including one he reordered by hand.
+    const updates = script.lines.filter((line) => line.surface !== "nodes");
+    const products = script.lines.filter((line) => line.surface === "nodes");
     // A take with no products at all is one part: the opening IS the video.
-    if (firstNode === -1) return part === "opening" ? [...script.lines] : [];
-    return part === "opening"
-      ? script.lines.slice(0, firstNode)
-      : script.lines.slice(firstNode);
+    if (products.length === 0) return part === "opening" ? updates : [];
+    return part === "opening" ? updates : products;
   }
 
   /** Where the conversation stands. WHEN he speaks decides what plays, never

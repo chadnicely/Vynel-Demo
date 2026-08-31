@@ -95,6 +95,13 @@ export const useDisplayVoice = defineStore("display-voice", () => {
   // its native STT over the same speech (it only ever knew about sessions its
   // own wake handed over).
   function handleSessionStarted(): void {
+    // NEVER WHILE FILMING (Chad, 2026-08-30). Announcing a session hands the
+    // daemon's microphone to this window and stops it transcribing until the
+    // window says it is done. A take answers from recorded audio and has no
+    // recognizer to take over, so the announcement left NOBODY listening —
+    // measured mid-shoot: the first two exchanges landed, then the daemon
+    // went deaf and the sign-off could not be spoken at all.
+    if (demo.isArmedNow()) return;
     daemon.notifySessionStart();
   }
 
