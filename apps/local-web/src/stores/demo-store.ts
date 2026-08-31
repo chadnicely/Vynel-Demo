@@ -1231,10 +1231,42 @@ export const useDemoStore = defineStore("demo", () => {
   }
 
   /** A take staged and waiting on his voice — the one moment the room MUST be
-   *  the daemon's, because nothing else is listening for the wake. */
+   *  the daemon's, because nothing else is listening for the wake.
+   *
+   *  It is also the moment to get this take's audio in hand. Measured on his
+   *  machine: the wake landed and the room sat silent for 8.2 seconds while
+   *  the bank fetched what it needed. Staging happens seconds BEFORE he
+   *  speaks — the pause belongs there, where no camera is running, not
+   *  between his line and the answer (Chad, 2026-08-30). */
   function stageTake(scriptId: string): void {
     requestedScriptId.value = scriptId;
     keepDaemonListening();
+    void warmTake(scriptId);
+  }
+
+  /** THIS take's own lines and the three replies, ahead of everything else in
+   *  the queue. A full `prepareAudio()` here would put twenty other takes'
+   *  lines in front of the one about to film. */
+  async function warmTake(scriptId: string): Promise<void> {
+    const take = scripts.value.find((script) => script.id === scriptId);
+    if (take === undefined) return;
+    const wanted = [
+      ...demoReplyLines(),
+      ...[take.greeting, take.intro, take.conclusion].filter(
+        (line): line is string => typeof line === "string" && line.length > 0,
+      ),
+      ...take.lines.map((line) => line.text),
+    ];
+    const fresh = [...new Set(wanted)];
+    if (bank.isReady(fresh)) return;
+    await bank.hydrate(fresh);
+    if (bank.isReady(fresh)) {
+      recordedTick.value += 1;
+      return;
+    }
+    await bank.prepare(fresh, () => {
+      recordedTick.value += 1;
+    });
   }
 
   /** What the next run plays: one half, or the take end to end. */
@@ -1454,6 +1486,7 @@ export const useDemoStore = defineStore("demo", () => {
     routineRequestCount,
     requestRoutine,
     stageTake,
+    warmTake,
     keepDaemonListening,
     resetRoutineScene,
     clearRoutineScene,
