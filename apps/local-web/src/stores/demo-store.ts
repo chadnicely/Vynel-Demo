@@ -1339,9 +1339,28 @@ export const useDemoStore = defineStore("demo", () => {
   // The daemon's echo filter cannot help: it knows the sound IT played, and
   // a take plays through the browser. So the room only listens while the film
   // is silent and genuinely waiting on him. Speaking closes its own ears.
+  // Deaf again the instant it speaks; listening again only after the room has
+  // gone quiet. A take that has just finished is still coming out of the
+  // speakers — the last word, the reveal's own hall, the tail of a line — and
+  // opening the ears into that had the film cue its own next exchange: it
+  // went into the dev log before he had said anything (Chad, 2026-08-30).
+  const ROOM_QUIET_MS = 1400;
+  let listenAgain = 0;
   watch(
     () => wantsFilming.value && !isRoutineRunning.value && !isSpeakingLine.value,
-    (listening) => tellDaemonFilming(listening),
+    (listening) => {
+      clearTimeout(listenAgain);
+      // Closing them is urgent; opening them can wait for silence.
+      if (!listening) {
+        tellDaemonFilming(false);
+        return;
+      }
+      listenAgain = setTimeout(() => {
+        if (wantsFilming.value && !isRoutineRunning.value && !isSpeakingLine.value) {
+          tellDaemonFilming(true);
+        }
+      }, ROOM_QUIET_MS) as unknown as number;
+    },
   );
 
   /** The show has signed off: everything under this goes to plain black

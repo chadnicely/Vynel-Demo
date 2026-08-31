@@ -3,6 +3,7 @@ import { useRouter } from "vue-router";
 import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
 import { useDemoStore, DEMO_LINE_GAP_SECONDS } from "../../stores/demo-store.js";
 import { DEMO_CONVERSATION_REPLIES } from "../../demo/demo-conversation.js";
+import { REVEAL_MS } from "../../demo/demo-reveal-chime.js";
 
 // The filmed routine, beat by beat (Chad, 2026-08-28): wake → the Display
 // wakes in a re-rolled look and speaks one greeting → the node screen, in the
@@ -91,21 +92,27 @@ export function useDemoRoutine(options: {
       // half continues a video already running: re-rolling the look or saying
       // hello again mid-film would break it in two.
       if (opensTheVideo) {
-        // EXCHANGE ONE (Chad, 2026-08-29): "Hey Pacino, what's up?" is
-        // answered over the black — the slate's black hands off to ours in
-        // the same paint — and only then does the room come on. The reply
-        // replaced the scripted greeting: the film is a conversation now.
-        await demo.playRecordedLine(DEMO_CONVERSATION_REPLIES.opening);
-        if (!demo.isRoutineRunning) return;
+        // EXCHANGE ONE: he speaks, the room OPENS, and then it answers.
+        //
+        // The reply used to play first, over the black, with the reveal after
+        // it — so the transition arrived while the assistant was already
+        // talking and read as a late arrival rather than an entrance (Chad,
+        // 2026-08-30). The room now wakes on the hit and speaks from a lit
+        // screen, which is the order a film would cut it in.
         demo.randomizeLook();
         if (!ui.nodesThemed) ui.toggleNodesThemed();
         ui.nodesMode = "nodes";
         demo.resetRoutineScene();
         ui.activateTab(GLOBAL_TAB_ID);
         options.showDisplay();
-        // The reveal — the answer has landed, the screen wakes on cue.
+        // Dressed behind the black — the reveal shows a finished room.
         demo.isBlackout = false;
-        await beat(ROOM_SETTLE_MS);
+        // Let the hit land and the light finish arriving before it speaks.
+        await beat(REVEAL_MS);
+        if (!demo.isRoutineRunning) return;
+        await demo.playRecordedLine(DEMO_CONVERSATION_REPLIES.opening);
+        if (!demo.isRoutineRunning) return;
+        await beat(CUT_BEAT_MS);
       }
 
       // The take asked for by name (a card's Demo button), else the queue's

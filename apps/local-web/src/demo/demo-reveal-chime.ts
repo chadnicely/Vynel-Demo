@@ -32,7 +32,7 @@ export const REVEAL_MS = 1100;
 /** Where the impact lands. Everything before it is the run-up. */
 const IMPACT_S = 0.85;
 /** How long the hall rings. */
-const TAIL_S = 3.4;
+const TAIL_S = 2.0;
 
 type AudioContextConstructor = new () => AudioContext;
 
@@ -83,7 +83,7 @@ function softClipCurve(amount: number): Float32Array<ArrayBuffer> {
 
 /** Play it once. Silent and harmless where there is no audio at all — a room
  *  with no sound must never be a room that fails to open. */
-export function playRevealChime(volume = 0.9): void {
+export function playRevealChime(volume = 0.42): void {
   const Ctor = resolveAudioContext();
   if (Ctor === null) return;
   let context: AudioContext;
@@ -113,7 +113,7 @@ export function playRevealChime(volume = 0.9): void {
   const hall = context.createConvolver();
   hall.buffer = impulseResponse(context, TAIL_S);
   const wet = context.createGain();
-  wet.gain.value = 0.62;
+  wet.gain.value = 0.42;
   hall.connect(wet).connect(master);
 
   const send = (node: AudioNode, amount: number): void => {
@@ -132,7 +132,7 @@ export function playRevealChime(volume = 0.9): void {
   band.frequency.exponentialRampToValueAtTime(9000, impactAt);
   const riserGain = context.createGain();
   riserGain.gain.setValueAtTime(0.0001, now);
-  riserGain.gain.exponentialRampToValueAtTime(0.7, now + IMPACT_S * 0.92);
+  riserGain.gain.exponentialRampToValueAtTime(0.42, now + IMPACT_S * 0.92);
   // Cut hard AT the impact: the sliver of silence before a hit is what makes
   // the hit feel big.
   riserGain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 0.05);
@@ -147,7 +147,7 @@ export function playRevealChime(volume = 0.9): void {
   crackShape.frequency.value = 1600;
   const crackGain = context.createGain();
   crackGain.gain.setValueAtTime(0.0001, impactAt);
-  crackGain.gain.exponentialRampToValueAtTime(0.85, impactAt + 0.004);
+  crackGain.gain.exponentialRampToValueAtTime(0.55, impactAt + 0.004);
   crackGain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 0.13);
   crack.connect(crackShape).connect(crackGain).connect(master);
   send(crackGain, 0.6);
@@ -159,7 +159,7 @@ export function playRevealChime(volume = 0.9): void {
   const boomGain = context.createGain();
   boomGain.gain.setValueAtTime(0.0001, impactAt);
   boomGain.gain.exponentialRampToValueAtTime(1, impactAt + 0.02);
-  boomGain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 2.6);
+  boomGain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 1.5);
   drive.connect(boomGain).connect(master);
   send(boomGain, 0.45);
 
@@ -177,7 +177,7 @@ export function playRevealChime(volume = 0.9): void {
     gain.gain.value = level;
     sub.connect(gain).connect(drive);
     sub.start(impactAt);
-    sub.stop(impactAt + 2.7);
+    sub.stop(impactAt + 1.6);
   }
 
   // ── THE SHIMMER ────────────────────────────────────────────────────────
@@ -193,11 +193,11 @@ export function playRevealChime(volume = 0.9): void {
     const gain = context.createGain();
     gain.gain.setValueAtTime(0.0001, impactAt);
     gain.gain.exponentialRampToValueAtTime(level, impactAt + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 1.8);
+    gain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 1.2);
     partial.connect(gain).connect(master);
     send(gain, 0.85);
     partial.start(impactAt);
-    partial.stop(impactAt + 1.9);
+    partial.stop(impactAt + 1.3);
   }
 
   riser.start(now);
