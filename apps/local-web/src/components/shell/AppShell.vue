@@ -563,6 +563,9 @@ function returnToDoor() {
 // the "+" leads to: the build wizard, or the folder picker.
 const onboardingStore = useOnboardingStore();
 onMounted(() => {
+  // The document painted black before the app was even fetched (index.html).
+  // The slate is on screen by now, so the cover has done its job.
+  document.getElementById("film-cover")?.remove();
   const door = onboardingStore.takeFirstProjectDoor();
   if (door === "new") isWorkspaceWizardOpen.value = true;
   else if (door === "existing") isWhichProjectOpen.value = true;

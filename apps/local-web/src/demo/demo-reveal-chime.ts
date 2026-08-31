@@ -186,25 +186,10 @@ export function playRevealChime(volume = 0.42): void {
     sub.stop(impactAt + 1.6);
   }
 
-  // ── THE SHIMMER ────────────────────────────────────────────────────────
-  // The top of the mix opening with the light.
-  for (const [hz, level] of [
-    [1568, 0.26],
-    [2350, 0.13],
-    [3136, 0.07],
-  ] as const) {
-    const partial = context.createOscillator();
-    partial.type = "sine";
-    partial.frequency.value = hz;
-    const gain = context.createGain();
-    gain.gain.setValueAtTime(0.0001, impactAt);
-    gain.gain.exponentialRampToValueAtTime(level, impactAt + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 1.2);
-    partial.connect(gain).connect(master);
-    send(gain, 0.85);
-    partial.start(impactAt);
-    partial.stop(impactAt + 1.3);
-  }
+  // THE BELL IS GONE (Chad, 2026-08-30: “the swish sound is good... not sure
+  // about the bell”). Two sine partials over the impact read as a notification
+  // rather than as a room opening — the riser and the boom carry it alone, and
+  // the hall gives the top end all the air it needs.
 
   riser.start(now);
   crack.start(impactAt);

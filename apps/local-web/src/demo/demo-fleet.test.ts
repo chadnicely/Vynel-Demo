@@ -6,6 +6,7 @@ const roster: DemoProject[] = ["a", "b", "c", "d", "e", "f", "g", "h"].map((id) 
   id,
   name: id.toUpperCase(),
   initials: id.toUpperCase(),
+  aliases: [id],
   purpose: "",
   updates: [],
   shipped: [],

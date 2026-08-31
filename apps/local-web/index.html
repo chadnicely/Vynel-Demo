@@ -8,6 +8,27 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      // BLACK FROM THE FIRST BYTE (Chad, 2026-08-30).
+      //
+      // A take opens in its own tab at /?play=... and the app has to load, parse,
+      // mount Vue and resolve a route before the film slate can cover anything.
+      // Every one of those frames was the dashboard, on camera, and no fix
+      // inside the app could reach them — by the time app code runs, the browser
+      // has already painted.
+      //
+      // So the cover goes up here, in the document, before a single line of the
+      // app is fetched. The shell removes it once the slate is on screen.
+      if (window.location.search.indexOf('play=') !== -1) {
+        document.documentElement.style.background = '#000';
+        var cover = document.createElement('div');
+        cover.id = 'film-cover';
+        cover.setAttribute('data-testid', 'film-cover');
+        cover.style.cssText =
+          'position:fixed;inset:0;z-index:2147483647;background:#000';
+        document.body.appendChild(cover);
+      }
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
