@@ -51,8 +51,11 @@ const NOTHING_SAID_LINE = "That's done — I didn't have anything to say about i
 type DriverState = 'asleep' | 'active' | 'in-turn' | 'relaying' | 'handed-off'
 
 /** How long he may pause mid-sentence before the film takes him as finished.
- *  Longer than a comma, shorter than a beat between two takes. */
-const FILMED_CUE_SETTLE_MS = 1100
+ *  Longer than a comma, longer than a breath — he asked for the software
+ *  updates and it jumped in before the sentence was done (Chad, 2026-08-31,
+ *  at 1100ms). Two seconds of true silence is a finished thought; the
+ *  thinking beat on the answer covers the extra wait on camera. */
+const FILMED_CUE_SETTLE_MS = 1900
 
 /** How long a staged take may keep the room waking on any word. */
 const FILMING_TTL_MS = 15 * 60 * 1000
