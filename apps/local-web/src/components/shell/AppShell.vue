@@ -1269,19 +1269,31 @@ onBeforeUnmount(() => {
   z-index: 98;
   pointer-events: none;
   background: #000;
-  /* The hole in the black, opening from the middle. A soft edge reads as
-     light arriving; a hard one reads as a mask sliding. */
-  animation: demo-reveal-open 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  /* THE LIGHT ARRIVES ON THE HIT. The sound runs up for 850ms and then
+     lands; an even fade would have the room already lit by the time it
+     does, which reads as two separate events. So the black barely moves
+     through the run-up and blows open at the impact (Chad, 2026-08-30). */
+  animation: demo-reveal-open 1000ms linear forwards;
 }
 
 @keyframes demo-reveal-open {
-  from {
-    -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 0%, #000 0%);
-    mask-image: radial-gradient(circle at 50% 50%, transparent 0%, #000 0%);
+  0% {
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 0%, #000 6%);
+    mask-image: radial-gradient(circle at 50% 50%, transparent 0%, #000 6%);
   }
-  to {
-    -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 130%, #000 175%);
-    mask-image: radial-gradient(circle at 50% 50%, transparent 130%, #000 175%);
+  /* The run-up: a bare glow at the centre, nothing more. */
+  70% {
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 4%, #000 16%);
+    mask-image: radial-gradient(circle at 50% 50%, transparent 4%, #000 16%);
+  }
+  /* The impact. */
+  86% {
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 70%, #000 105%);
+    mask-image: radial-gradient(circle at 50% 50%, transparent 70%, #000 105%);
+  }
+  100% {
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 150%, #000 190%);
+    mask-image: radial-gradient(circle at 50% 50%, transparent 150%, #000 190%);
   }
 }
 

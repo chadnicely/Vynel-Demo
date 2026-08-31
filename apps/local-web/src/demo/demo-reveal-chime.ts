@@ -1,28 +1,38 @@
-// THE ROOM COMING ALIVE (Chad, 2026-08-30: "it should have some kind of
-// transition from when it goes from blank to talking... with a sound too that
-// is attention getting").
+// THE ROOM COMING ALIVE (Chad, 2026-08-30). The cut from black to a lit room
+// is the moment a viewer decides whether to keep watching, and it happened in
+// one frame with no sound at all.
 //
-// A cut from black to a lit room is the moment the viewer decides whether to
-// keep watching, and it was happening in one frame with no sound at all.
+// The first attempt was a swell and a bell, and he was right that it was weak.
+// A trailer hit is not a louder tone — it is four things a tone does not have:
 //
-// Synthesized rather than shipped as a file: a WAV in the bundle is a licence
-// to check, a download to wait on, and one more thing to lose. Three voices,
-// all Web Audio:
+//   THE RISER    filtered noise climbing for a second. Noise, not pitch, is
+//                what reads as air moving, and it is the run-up that makes the
+//                hit land rather than merely start.
+//   THE CRACK    a few milliseconds of bright transient AT the impact. This is
+//                the difference between a thump and a HIT.
+//   THE BOOM     a sub falling 66Hz -> 26Hz through a soft clipper. The
+//                clipping is the point: it puts harmonics up where a laptop
+//                speaker actually lives, so the weight survives playback on a
+//                machine that cannot reproduce 26Hz at all.
+//   THE TAIL     a real convolution reverb from a generated impulse. Space is
+//                what separates a film sound from a UI beep, and it is the one
+//                thing a longer release cannot fake.
 //
-//   the swell  — a filtered rise that says something is about to happen
-//   the body   — a low sine that lands under it, so it has weight on a laptop
-//   the bell   — two partials at the top of the rise, where the light arrives
+// Synthesized rather than shipped: a WAV in the bundle is a licence to check,
+// a download to wait on, and one more thing to lose.
 //
-// It ends before the assistant speaks: the reveal introduces the voice, it
-// never talks over it.
+// Picked from a bench of five (trailer hit, braaam, power-on, swell, breath)
+// — this is the trailer hit at the larger of two sizes.
 
-/** How long the whole gesture runs — the reveal animation matches it. */
-export const REVEAL_MS = 900;
+/** How long the gesture runs on screen. The tail rings on beneath the first
+ *  spoken line, which is how film sounds and is far too quiet by then to
+ *  fight the voice. */
+export const REVEAL_MS = 1100;
 
-const SWELL_FROM_HZ = 180;
-const SWELL_TO_HZ = 1250;
-/** The bell lands with the light, not with the start of the rise. */
-const BELL_AT_S = 0.52;
+/** Where the impact lands. Everything before it is the run-up. */
+const IMPACT_S = 0.85;
+/** How long the hall rings. */
+const TAIL_S = 3.4;
 
 type AudioContextConstructor = new () => AudioContext;
 
@@ -34,9 +44,46 @@ function resolveAudioContext(): AudioContextConstructor | null {
   return scope.AudioContext ?? scope.webkitAudioContext ?? null;
 }
 
+/** Noise, in stereo where the context offers two channels — a mono riser sits
+ *  in the middle of the head and sounds small. */
+function noiseBuffer(context: AudioContext, seconds: number): AudioBuffer {
+  const channels = Math.min(2, context.destination.channelCount || 1);
+  const frames = Math.max(1, Math.floor(context.sampleRate * seconds));
+  const buffer = context.createBuffer(channels, frames, context.sampleRate);
+  for (let channel = 0; channel < channels; channel += 1) {
+    const data = buffer.getChannelData(channel);
+    for (let i = 0; i < frames; i += 1) data[i] = Math.random() * 2 - 1;
+  }
+  return buffer;
+}
+
+/** A hall, built rather than downloaded: noise under an exponential decay is
+ *  the standard cheap impulse and is indistinguishable at this length. */
+function impulseResponse(context: AudioContext, seconds: number): AudioBuffer {
+  const buffer = noiseBuffer(context, seconds);
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const data = buffer.getChannelData(channel);
+    for (let i = 0; i < data.length; i += 1) {
+      data[i] = (data[i] ?? 0) * (1 - i / data.length) ** 2.6;
+    }
+  }
+  return buffer;
+}
+
+/** Soft clipping — see THE BOOM above. */
+function softClipCurve(amount: number): Float32Array<ArrayBuffer> {
+  const points = 1024;
+  const curve = new Float32Array(new ArrayBuffer(points * 4));
+  for (let i = 0; i < points; i += 1) {
+    const x = (i * 2) / points - 1;
+    curve[i] = ((1 + amount) * x) / (1 + amount * Math.abs(x));
+  }
+  return curve;
+}
+
 /** Play it once. Silent and harmless where there is no audio at all — a room
  *  with no sound must never be a room that fails to open. */
-export function playRevealChime(volume = 0.28): void {
+export function playRevealChime(volume = 0.9): void {
   const Ctor = resolveAudioContext();
   if (Ctor === null) return;
   let context: AudioContext;
@@ -47,66 +94,118 @@ export function playRevealChime(volume = 0.28): void {
   }
 
   const now = context.currentTime;
+  const impactAt = now + IMPACT_S;
+
+  // A limiter across the whole thing: this is loud on purpose and must never
+  // crackle on the machine it is filmed on.
+  const limiter = context.createDynamicsCompressor();
+  limiter.threshold.value = -9;
+  limiter.knee.value = 6;
+  limiter.ratio.value = 12;
+  limiter.attack.value = 0.002;
+  limiter.release.value = 0.2;
+  limiter.connect(context.destination);
+
   const master = context.createGain();
   master.gain.value = volume;
-  master.connect(context.destination);
+  master.connect(limiter);
 
-  // ── the swell ──────────────────────────────────────────────────────────
-  const swell = context.createOscillator();
-  swell.type = "triangle";
-  swell.frequency.setValueAtTime(SWELL_FROM_HZ, now);
-  swell.frequency.exponentialRampToValueAtTime(SWELL_TO_HZ, now + BELL_AT_S);
+  const hall = context.createConvolver();
+  hall.buffer = impulseResponse(context, TAIL_S);
+  const wet = context.createGain();
+  wet.gain.value = 0.62;
+  hall.connect(wet).connect(master);
 
-  // Opening the filter with the pitch is what makes it read as arriving
-  // rather than as a tone that simply got higher.
-  const shape = context.createBiquadFilter();
-  shape.type = "lowpass";
-  shape.frequency.setValueAtTime(400, now);
-  shape.frequency.exponentialRampToValueAtTime(6000, now + BELL_AT_S);
-  shape.Q.value = 1.2;
+  const send = (node: AudioNode, amount: number): void => {
+    const tap = context.createGain();
+    tap.gain.value = amount;
+    node.connect(tap).connect(hall);
+  };
 
-  const swellGain = context.createGain();
-  swellGain.gain.setValueAtTime(0.0001, now);
-  swellGain.gain.exponentialRampToValueAtTime(0.5, now + BELL_AT_S);
-  swellGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
-  swell.connect(shape).connect(swellGain).connect(master);
+  // ── THE RISER ──────────────────────────────────────────────────────────
+  const riser = context.createBufferSource();
+  riser.buffer = noiseBuffer(context, IMPACT_S + 0.1);
+  const band = context.createBiquadFilter();
+  band.type = "bandpass";
+  band.Q.value = 0.9;
+  band.frequency.setValueAtTime(200, now);
+  band.frequency.exponentialRampToValueAtTime(9000, impactAt);
+  const riserGain = context.createGain();
+  riserGain.gain.setValueAtTime(0.0001, now);
+  riserGain.gain.exponentialRampToValueAtTime(0.7, now + IMPACT_S * 0.92);
+  // Cut hard AT the impact: the sliver of silence before a hit is what makes
+  // the hit feel big.
+  riserGain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 0.05);
+  riser.connect(band).connect(riserGain).connect(master);
+  send(riserGain, 0.35);
 
-  // ── the body ───────────────────────────────────────────────────────────
-  const body = context.createOscillator();
-  body.type = "sine";
-  body.frequency.setValueAtTime(70, now);
-  body.frequency.exponentialRampToValueAtTime(48, now + 0.85);
-  const bodyGain = context.createGain();
-  bodyGain.gain.setValueAtTime(0.0001, now);
-  bodyGain.gain.exponentialRampToValueAtTime(0.55, now + 0.1);
-  bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.85);
-  body.connect(bodyGain).connect(master);
+  // ── THE CRACK ──────────────────────────────────────────────────────────
+  const crack = context.createBufferSource();
+  crack.buffer = noiseBuffer(context, 0.14);
+  const crackShape = context.createBiquadFilter();
+  crackShape.type = "highpass";
+  crackShape.frequency.value = 1600;
+  const crackGain = context.createGain();
+  crackGain.gain.setValueAtTime(0.0001, impactAt);
+  crackGain.gain.exponentialRampToValueAtTime(0.85, impactAt + 0.004);
+  crackGain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 0.13);
+  crack.connect(crackShape).connect(crackGain).connect(master);
+  send(crackGain, 0.6);
 
-  // ── the bell ───────────────────────────────────────────────────────────
-  // Two partials a fifth apart: one sine reads as a test tone, two read as an
-  // instrument.
-  const bellAt = now + BELL_AT_S;
+  // ── THE BOOM ───────────────────────────────────────────────────────────
+  const drive = context.createWaveShaper();
+  drive.curve = softClipCurve(22);
+  drive.oversample = "4x";
+  const boomGain = context.createGain();
+  boomGain.gain.setValueAtTime(0.0001, impactAt);
+  boomGain.gain.exponentialRampToValueAtTime(1, impactAt + 0.02);
+  boomGain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 2.6);
+  drive.connect(boomGain).connect(master);
+  send(boomGain, 0.45);
+
+  for (const [from, to, level] of [
+    [66, 26, 1],
+    // A fifth above, quieter: it gives the sub a pitch on speakers that cannot
+    // reproduce the fundamental.
+    [99, 39, 0.45],
+  ] as const) {
+    const sub = context.createOscillator();
+    sub.type = "sine";
+    sub.frequency.setValueAtTime(from, impactAt);
+    sub.frequency.exponentialRampToValueAtTime(to, impactAt + 0.8);
+    const gain = context.createGain();
+    gain.gain.value = level;
+    sub.connect(gain).connect(drive);
+    sub.start(impactAt);
+    sub.stop(impactAt + 2.7);
+  }
+
+  // ── THE SHIMMER ────────────────────────────────────────────────────────
+  // The top of the mix opening with the light.
   for (const [hz, level] of [
-    [1568, 0.4],
-    [2350, 0.16],
+    [1568, 0.26],
+    [2350, 0.13],
+    [3136, 0.07],
   ] as const) {
     const partial = context.createOscillator();
     partial.type = "sine";
     partial.frequency.value = hz;
     const gain = context.createGain();
-    gain.gain.setValueAtTime(0.0001, bellAt);
-    gain.gain.exponentialRampToValueAtTime(level, bellAt + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, bellAt + 0.75);
+    gain.gain.setValueAtTime(0.0001, impactAt);
+    gain.gain.exponentialRampToValueAtTime(level, impactAt + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, impactAt + 1.8);
     partial.connect(gain).connect(master);
-    partial.start(bellAt);
-    partial.stop(bellAt + 0.8);
+    send(gain, 0.85);
+    partial.start(impactAt);
+    partial.stop(impactAt + 1.9);
   }
 
-  swell.start(now);
-  body.start(now);
-  swell.stop(now + 0.95);
-  body.stop(now + 0.9);
+  riser.start(now);
+  crack.start(impactAt);
 
-  // Let the tail ring out, then give the device its audio hardware back.
-  window.setTimeout(() => void context.close().catch(() => {}), 1600);
+  // Let the hall ring out, then give the device its audio hardware back.
+  window.setTimeout(
+    () => void context.close().catch(() => {}),
+    (IMPACT_S + TAIL_S + 1) * 1000,
+  );
 }
