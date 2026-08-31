@@ -83,7 +83,10 @@ describe('detectWakeWord', () => {
     expect(detectWakeWord('whats up fine').detected).toBe(false)
     expect(detectWakeWord("what's up claude").detected).toBe(false)
     expect(detectWakeWord('hey casino what time is it').detected).toBe(false)
-    expect(detectWakeWord('hey pacino').detected).toBe(false)
+    // “hey pacino” NOW wakes (Chad, 2026-08-30): he says the name first on
+    // camera, and the take was lost every time. Only the “casino” garble stays
+    // out of this pairing — it is an ordinary word a television says.
+    expect(detectWakeWord('hey pacino').detected).toBe(true)
   })
 
   // THE SECOND TRIGGER (Chad, 2026-08-28): the wake phrase gets the evening
@@ -198,5 +201,25 @@ describe('the filmed conversation', () => {
     expect(detectWakeWord('thanks').detected).toBe(false)
     expect(detectWakeWord('thanks so much for that').detected).toBe(false)
     expect(detectWakeWord('thank you very much').detected).toBe(false)
+  })
+})
+
+describe('the name first, the way he actually says it', () => {
+  it('wakes on "Hey Pacino" as well as "What\u2019s up Pacino"', () => {
+    expect(detectWakeWord('Hey Pacino, what\u2019s up?').detected).toBe(true)
+    expect(detectWakeWord('Hi Pacino').detected).toBe(true)
+    expect(detectWakeWord("What's up Pacino").detected).toBe(true)
+  })
+
+  it('keeps the command after the name', () => {
+    expect(detectWakeWord('Hey Pacino, how are we doing?').command).toBe(
+      'how are we doing?',
+    )
+  })
+
+  it('still refuses "hey casino" — a television says that', () => {
+    expect(detectWakeWord('hey casino').detected).toBe(false)
+    // ...but the deliberate demo greeting may still carry the garble.
+    expect(detectWakeWord("what's up casino").detected).toBe(true)
   })
 })

@@ -37,6 +37,15 @@ const WAKE_GREETING = 'hey|hi|hello|yo'
 const DEMO_WAKE_NAME = 'pacino|pachino|pacheeno|patchino|puccino|pucino|casino'
 const DEMO_WAKE_GREETING = "what'?s[\\s,]+up|wass?up|whassup|sup"
 
+// “HEY Pacino” TOO (Chad, 2026-08-30). The pairing above wants the name
+// LAST — “what's up Pacino” — and he naturally says it first. On camera that
+// is the take lost, so the plain greetings pair with the name as well.
+//
+// “casino” is deliberately NOT in this half: it is a garble of Pacino AND an
+// ordinary word, and “hey, casino” is a sentence a television says. It stays
+// available to the “what's up” pairing, which nothing says by accident.
+const DEMO_WAKE_NAME_STRICT = 'pacino|pachino|pacheeno|patchino|puccino|pucino'
+
 // THE SECOND TRIGGER (Chad, 2026-08-28). On camera the film is a
 // conversation: the wake phrase gets the evening update, and then he ASKS for
 // the software — "how's our software doing", "how's the dev team doing" — and
@@ -68,7 +77,7 @@ const DEMO_SIGNOFF_PATTERN = new RegExp(`^[\\s,.!?-]*(?:${DEMO_SIGNOFF})\\b`, 'i
 // greeting + separator + a wake-name token, anchored at the start. `/i` covers
 // casing; the trailing class eats the punctuation STT leaves after the name.
 const WAKE_PATTERN = new RegExp(
-  `^[\\s,.!?-]*(?:(?:${WAKE_GREETING})[\\s,]+(?:${WAKE_NAME})|(?:${DEMO_WAKE_GREETING})[\\s,]+(?:${DEMO_WAKE_NAME}))\\b[\\s,.!?:-]*`,
+  `^[\\s,.!?-]*(?:(?:${WAKE_GREETING})[\\s,]+(?:${WAKE_NAME}|${DEMO_WAKE_NAME_STRICT})|(?:${DEMO_WAKE_GREETING})[\\s,]+(?:${DEMO_WAKE_NAME}))\\b[\\s,.!?:-]*`,
   'i',
 )
 
