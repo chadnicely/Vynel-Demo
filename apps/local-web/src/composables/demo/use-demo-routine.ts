@@ -48,9 +48,23 @@ export function useDemoRoutine(options: {
       // of its own that is not recorded yet is synthesized on demand as it is
       // reached, and the rest of the bank keeps recording behind the film.
       void demo.prepareAudio();
-      // The daemon now believes a web recognizer owns the room: its native
-      // STT stays off the microphone and nothing talks over the take.
-      void fetch("/voice/session/start", { method: "POST" }).catch(() => {});
+      // THE DAEMON KEEPS THE ROOM (Chad, 2026-08-30: “it's not hearing me”).
+      //
+      // This used to hand the microphone off to a web recognizer for the
+      // duration of the take. Nothing ever took it: the film has no recognizer
+      // of its own, so after the first half the daemon had stopped listening
+      // and NOTHING was — the second and third exchanges could not be spoken
+      // at all, and the screen sat black. The daemon holds its microphone open
+      // by design and will not release it, so a second recognizer only ever
+      // collided with it (“microphone in use”).
+      //
+      // Armed, it stays awake for the whole shoot and every exchange is spoken
+      // to the same ears. A wake landing while a take is already running is
+      // harmless — `run()` returns early — so the assistant's own voice coming
+      // back off the speakers cannot skip him ahead.
+      if (!demo.isArmed) {
+        void fetch("/voice/session/start", { method: "POST" }).catch(() => {});
+      }
       // The room is dressed and greeted only when a take STARTS. The software
       // half continues a video already running: re-rolling the look or saying
       // hello again mid-film would break it in two.
@@ -138,7 +152,11 @@ export function useDemoRoutine(options: {
       // An UNARMED rehearsal has no disarm coming to clean up after it — the
       // scripted fleet must not stay parked over the real one.
       if (!demo.isArmed) demo.clearRoutineScene();
-      void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
+      // Only ever released if we took it — armed, the daemon never handed it
+      // over, and ending a handoff it never began would sleep it mid-shoot.
+      if (!demo.isArmed) {
+        void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
+      }
     }
   }
 

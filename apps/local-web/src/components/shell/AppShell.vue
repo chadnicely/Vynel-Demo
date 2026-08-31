@@ -93,7 +93,6 @@ import { useVoiceChatStatus } from "../../composables/sessions/use-voice-chat-st
 import { useSessionsNavigation } from "../../composables/sessions/use-sessions-navigation.js";
 import { useDemoRoutine } from "../../composables/demo/use-demo-routine.js";
 import DemoFilmSlate from "../demo/DemoFilmSlate.vue";
-import { useFilmListener } from "../../composables/demo/use-film-listener.js";
 import { useDemoStore } from "../../stores/demo-store.js";
 import { useDisplayToggle } from "../../composables/display/use-display-toggle.js";
 import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
@@ -672,10 +671,6 @@ onMounted(() => {
   filmSlateScriptId = play;
   filmSlateClip.value = demo.assignClipNumber(play);
 });
-
-// Armed means LISTENING: the browser recognizer runs for the whole shoot so
-// the film moves with his voice, not with the daemon guessing a wake phrase.
-useFilmListener();
 
 // THE CLICKER (Chad, 2026-08-30: “its not hearing me”). Filming should not
 // depend on the microphone: any of these keys advances the conversation
