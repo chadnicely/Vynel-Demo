@@ -78,14 +78,20 @@ function newestFirst(list: readonly DemoScript[]): DemoScript[] {
   return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 }
 
-const readyScripts = computed(() =>
-  newestFirst(
-    demo.scripts.filter(
-      (script) =>
-        demo.scriptStage(script) === "recorded" && script.completedAt === undefined,
-    ),
-  ),
-);
+/** Ready to film leads; already shot sinks underneath (Chad, 2026-08-30).
+ *  On a shooting day the top of this list should always be the next thing to
+ *  point a camera at, and a take that has been filmed is not that. Newest
+ *  first inside each group. */
+const readyScripts = computed(() => {
+  const ready = demo.scripts.filter(
+    (script) =>
+      demo.scriptStage(script) === "recorded" && script.completedAt === undefined,
+  );
+  return [
+    ...newestFirst(ready.filter((script) => script.playedAt === undefined)),
+    ...newestFirst(ready.filter((script) => script.playedAt !== undefined)),
+  ];
+});
 /** The keepers — filmed and called done. Their own tab, so Ready stays the
  *  work left (Chad, 2026-08-29). */
 const completedScripts = computed(() =>

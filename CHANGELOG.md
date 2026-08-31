@@ -9,6 +9,20 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **Armed now means listening.** Arming used to mean only that a wake, IF one
+  arrived, would run the routine instead of a real conversation — nothing
+  opened a microphone. The film waited on the daemon's own wake-word model,
+  and when that did not hear him the screen sat black with no way forward.
+  The browser's recognizer now runs for the whole shoot, and because WHEN he
+  speaks decides the exchange, any utterance moves the film: he says his
+  real line to camera and the take goes with him. It never listens while the
+  room is speaking, and the daemon stands down so one utterance cannot
+  advance the film twice. Space / Enter / → also advance, as a silent backup
+  if a mic drops mid-shoot.
+
+- **Ready to film leads; already shot sinks below it.** The top of that list
+  should always be the next thing to point a camera at.
+
 - **A take is two groups now: every update, then every product.** It used to
   be written update → products → two more updates, so the film cut back to
   the orb after the constellation. That was not just an extra cut: the take

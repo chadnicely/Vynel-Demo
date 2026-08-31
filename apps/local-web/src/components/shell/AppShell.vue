@@ -93,6 +93,7 @@ import { useVoiceChatStatus } from "../../composables/sessions/use-voice-chat-st
 import { useSessionsNavigation } from "../../composables/sessions/use-sessions-navigation.js";
 import { useDemoRoutine } from "../../composables/demo/use-demo-routine.js";
 import DemoFilmSlate from "../demo/DemoFilmSlate.vue";
+import { useFilmListener } from "../../composables/demo/use-film-listener.js";
 import { useDemoStore } from "../../stores/demo-store.js";
 import { useDisplayToggle } from "../../composables/display/use-display-toggle.js";
 import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
@@ -671,6 +672,40 @@ onMounted(() => {
   filmSlateScriptId = play;
   filmSlateClip.value = demo.assignClipNumber(play);
 });
+
+// Armed means LISTENING: the browser recognizer runs for the whole shoot so
+// the film moves with his voice, not with the daemon guessing a wake phrase.
+useFilmListener();
+
+// THE CLICKER (Chad, 2026-08-30: “its not hearing me”). Filming should not
+// depend on the microphone: any of these keys advances the conversation
+// exactly as speaking does — the same store call, so the order is the same
+// one the wake word walks. A presentation remote sends these too, which is
+// what a person actually holds on a set.
+const ADVANCE_KEYS = new Set([" ", "Enter", "ArrowRight", "PageDown"]);
+
+function onFilmKey(event: KeyboardEvent): void {
+  if (!ADVANCE_KEYS.has(event.key)) return;
+  // Only while armed, and never on the screen where he WRITES the takes —
+  // a space bar there would fire a film instead of typing one.
+  if (!demo.isArmedNow() || route.path === "/demo-scripts") return;
+  const target = event.target as HTMLElement | null;
+  if (
+    target !== null &&
+    (target.isContentEditable ||
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT")
+  ) {
+    return;
+  }
+  // Space would also press whatever button happens to hold focus.
+  event.preventDefault();
+  demo.requestSpokenRoutine("");
+}
+
+onMounted(() => window.addEventListener("keydown", onFilmKey));
+onBeforeUnmount(() => window.removeEventListener("keydown", onFilmKey));
 
 function onFilmSlateBlack(): void {
   if (filmSlateScriptId === null) return;
