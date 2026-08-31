@@ -53,6 +53,20 @@ type DriverState = 'asleep' | 'active' | 'in-turn' | 'relaying' | 'handed-off'
 /** How long a staged take may keep the room waking on any word. */
 const FILMING_TTL_MS = 15 * 60 * 1000
 
+/** WHAT COUNTS AS HIS CUE while filming. Any utterance moves the film, so
+ *  the bar has to keep out the things a room produces that are not him
+ *  talking to camera: the tail of the take's own last word, a chair, a
+ *  breath, a click. Each of those transcribes to a fragment.
+ *
+ *  He asked a real question and got the dev updates before he had spoken
+ *  (Chad, 2026-08-30) — the film cued itself on its own leftovers. Two words,
+ *  or one long one, is a line said to a camera. */
+function isSpokenCue(transcript: string): boolean {
+  const words = transcript.trim().split(/s+/).filter((word) => word.length > 1)
+  if (words.length >= 2) return true
+  return (words[0]?.length ?? 0) >= 5
+}
+
 export class VoiceSessionDriver {
   readonly #deps: VoiceSessionDriverDeps
   readonly #idleTimeoutMs: number
@@ -329,7 +343,7 @@ export class VoiceSessionDriver {
     // Filming, ANY utterance is the cue and it is handed over whole — the
     // film counts exchanges rather than reading words.
     const wake = this.#isFilming
-      ? { detected: true, command: transcript.trim() }
+      ? { detected: isSpokenCue(transcript), command: transcript.trim() }
       : detectWakeWord(transcript, {
           extraWakeNames: this.#deps.readWakeNames?.() ?? [],
         })

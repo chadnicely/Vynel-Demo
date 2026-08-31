@@ -1344,7 +1344,7 @@ export const useDemoStore = defineStore("demo", () => {
   // speakers — the last word, the reveal's own hall, the tail of a line — and
   // opening the ears into that had the film cue its own next exchange: it
   // went into the dev log before he had said anything (Chad, 2026-08-30).
-  const ROOM_QUIET_MS = 1400;
+  const ROOM_QUIET_MS = 2200;
   let listenAgain = 0;
   watch(
     () => wantsFilming.value && !isRoutineRunning.value && !isSpeakingLine.value,

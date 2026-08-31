@@ -1,4 +1,4 @@
-import { watch } from "vue";
+import { nextTick, watch } from "vue";
 import { useRouter } from "vue-router";
 import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
 import { useDemoStore, DEMO_LINE_GAP_SECONDS } from "../../stores/demo-store.js";
@@ -22,6 +22,9 @@ import { REVEAL_MS } from "../../demo/demo-reveal-chime.js";
 /** The room fades in before it speaks — a voice from a black screen reads as
  *  a glitch on camera. */
 const ROOM_SETTLE_MS = 600;
+/** Long enough for the display to mount and paint its first frame behind the
+ *  black. Cheaper than a flash of the old screen on camera. */
+const ROOM_PAINT_MS = 320;
 /** The beat on a cut between the orb and the node screen. */
 const CUT_BEAT_MS = 180;
 /** The constellation mounts and lays out before the first product speaks. */
@@ -105,6 +108,14 @@ export function useDemoRoutine(options: {
         demo.resetRoutineScene();
         ui.activateTab(GLOBAL_TAB_ID);
         options.showDisplay();
+        // PAINTED, not merely requested. Switching the view is a state change
+        // Vue renders on the next tick and the canvas needs a frame beyond
+        // that; lifting the black in the same breath revealed whatever screen
+        // was there before — he saw the dashboard flash through the hole
+        // (Chad, 2026-08-30).
+        await nextTick();
+        await beat(ROOM_PAINT_MS);
+        if (!demo.isRoutineRunning) return;
         // Dressed behind the black — the reveal shows a finished room.
         demo.isBlackout = false;
         // Let the hit land and the light finish arriving before it speaks.

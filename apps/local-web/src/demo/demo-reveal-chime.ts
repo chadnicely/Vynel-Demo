@@ -93,6 +93,12 @@ export function playRevealChime(volume = 0.42): void {
     return;
   }
 
+  // A tab that has not been clicked in starts its audio suspended, and a take
+  // opens in a NEW tab he never touched — so the reveal played to nobody
+  // (Chad, 2026-08-30: “no sound”). Resuming is a no-op where it is already
+  // running, and harmless where the browser refuses.
+  if (context.state === "suspended") void context.resume().catch(() => {});
+
   const now = context.currentTime;
   const impactAt = now + IMPACT_S;
 
