@@ -642,7 +642,10 @@ async function playWholeTake(script: DemoScript): Promise<void> {
       <div class="take-row">
         <span class="counts">
           <strong>{{ readyScripts.length }}</strong> ready to film ·
-          {{ demo.scripts.length }}/{{ DEMO_QUEUE_TARGET }} written
+          <!-- TAKES, said so. Beside a recording badge counting LINES, a bare
+               “10/10 written” read as a contradiction — two units, one word
+               (Chad, 2026-08-30). -->
+          {{ demo.scripts.length }}/{{ DEMO_QUEUE_TARGET }} takes written
         </span>
         <span class="spacer" />
         <!-- Only where it applies: approving is the Waiting tab's job, and on
