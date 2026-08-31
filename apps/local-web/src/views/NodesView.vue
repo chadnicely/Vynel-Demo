@@ -305,8 +305,14 @@ let scene: SceneHandle | null = null;
 // name reappeared in the body text a size smaller, twice per product.
 const lowerThird = computed(() => {
   const line = demo.spokenLine;
-  if (line === null) return null;
-  const names = demo.routineNodes?.map((node) => node.name) ?? [];
+  // Only what THIS screen said: the orb's half of the take is not a caption
+  // for the constellation (Chad, 2026-08-30).
+  if (line === null || line.surface !== "nodes") return null;
+  // The ROSTER, not the lit fleet: `routineNodes` is null whenever the take
+  // is not dressing the screen — an unarmed rehearsal clears it the moment
+  // the opening half ends — and the headline silently vanished, leaving
+  // “VideoGeyser — one colour theme…” as body text (Chad, 2026-08-30).
+  const names = demo.projects.map((project) => project.name);
   const { name, body } = splitHeading(line.text, names);
   return { name, text: body, durationMs: line.durationMs };
 });

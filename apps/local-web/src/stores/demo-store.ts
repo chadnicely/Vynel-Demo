@@ -1154,11 +1154,20 @@ export const useDemoStore = defineStore("demo", () => {
    *  and mouth like it does for a live reply — the take makes no session of
    *  its own, so without it the orb sat still through a whole video. */
   const isSpeakingLine = ref(false);
-  /** The sentence being said RIGHT NOW, and how long the recording runs, so a
-   *  caption can be typed across it rather than dumped in one frame. It stays
-   *  on screen after the line ends — clearing it between lines flickered the
-   *  caption off and back on every gap. */
-  const spokenLine = ref<{ text: string; durationMs: number } | null>(null);
+  /** The sentence being said RIGHT NOW, how long the recording runs, and the
+   *  screen that said it. A caption is typed across the duration rather than
+   *  dumped in one frame, and it STAYS after the line ends — clearing it
+   *  between lines flickered the caption off and back on every gap.
+   *
+   *  Which is why it carries its surface: holding the last line through the
+   *  gap meant the film cut to the orb still showing the constellation's
+   *  “VideoGeyser — one colour theme…” for a fifth of a second
+   *  (Chad, 2026-08-30). Each screen captions its own lines and nothing else. */
+  const spokenLine = ref<{
+    text: string;
+    durationMs: number;
+    surface: DemoLineSurface;
+  } | null>(null);
 
   /** Roughly how long a sentence takes to say out loud — the fallback for a
    *  line whose recording has not landed yet. Two and a half words a second is
@@ -1218,6 +1227,7 @@ export const useDemoStore = defineStore("demo", () => {
     spokenLine.value = {
       text,
       durationMs: measured === null ? spokenPaceMs(text) : measured * 1000,
+      surface,
     };
     isSpeakingLine.value = true;
     try {

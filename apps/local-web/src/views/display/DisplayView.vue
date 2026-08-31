@@ -349,7 +349,7 @@ const WIDGET_HINT = "Claude can put reports here";
           Orb unavailable — status panels still live
         </p>
         <DemoSpokenCaption
-          v-if="demo.spokenLine !== null"
+          v-if="demo.spokenLine !== null && demo.spokenLine.surface === 'hud'"
           :key="demo.spokenLine.text"
           :text="demo.spokenLine.text"
           :duration-ms="demo.spokenLine.durationMs"

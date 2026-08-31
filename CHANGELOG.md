@@ -9,6 +9,17 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The headline under a figure reads like English.** Watching takes back
+  turned up five ways the board could embarrass itself on camera: “$1,896
+  SINCE” (a preposition read as the subject), “467 WE'VE” (a pronoun hiding
+  in a contraction), “MASTERMIND MEMBERS JO…” (the verb pushing the label
+  past its width), “EMAIL OPEN RATE 39” (a spoken percent with no sign), and
+  a product name left as body text whenever the fleet was not lit. Every
+  shipped report line is now covered by a test that asserts what the screen
+  says. Each screen also captions only its OWN lines, so the cut back to the
+  orb no longer flashes the constellation's last sentence for a fifth of a
+  second.
+
 - **Newest take first, and the ones you've read are marked.** The queue is
   written in one press, so insertion order buried the take you just made at
   the bottom of ten; every tab now leads with the most recent. Opening a
