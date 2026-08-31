@@ -50,14 +50,19 @@ const NOTHING_SAID_LINE = "That's done — I didn't have anything to say about i
 
 type DriverState = 'asleep' | 'active' | 'in-turn' | 'relaying' | 'handed-off'
 
+/** How long a staged take may keep the room waking on any word. */
+const FILMING_TTL_MS = 15 * 60 * 1000
+
 export class VoiceSessionDriver {
   readonly #deps: VoiceSessionDriverDeps
   readonly #idleTimeoutMs: number
   readonly #turnWatchdogMs: number
 
   #state: DriverState = 'asleep'
-  /** Demo Mode is armed: any utterance is the cue. See setFilming(). */
+  /** A take is staged and waiting on him: any utterance is the cue. See
+   *  setFilming(). */
   #filming = false
+  #filmingUntil = 0
   #processing = false
   #idleTimer: ReturnType<typeof setTimeout> | null = null
   // The speaking mechanics (pipelining, the lane, the echo memory) live in the
@@ -210,6 +215,22 @@ export class VoiceSessionDriver {
    *  any other day a microphone that wakes on ANY speech is unusable. */
   setFilming(filming: boolean): void {
     this.#filming = filming
+    // A DEAD MAN'S SWITCH. Filming makes the microphone wake on any word in
+    // the room, so it must never be able to outlive the take that asked for
+    // it: a browser that crashes, a tab closed mid-shoot, or a message that
+    // never arrives would otherwise leave the machine listening to a whole
+    // household (Chad, 2026-08-30 — he was on another screen and could not
+    // stop it playing). A take runs minutes; this is generous and still
+    // bounded.
+    this.#filmingUntil = filming ? Date.now() + FILMING_TTL_MS : 0
+  }
+
+  get #isFilming(): boolean {
+    if (!this.#filming) return false
+    if (Date.now() <= this.#filmingUntil) return true
+    this.#filming = false
+    this.#deps.logger.info('filming expired — back to the wake phrase')
+    return false
   }
 
   beginHandoff(): void {
@@ -307,7 +328,7 @@ export class VoiceSessionDriver {
     }
     // Filming, ANY utterance is the cue and it is handed over whole — the
     // film counts exchanges rather than reading words.
-    const wake = this.#filming
+    const wake = this.#isFilming
       ? { detected: true, command: transcript.trim() }
       : detectWakeWord(transcript, {
           extraWakeNames: this.#deps.readWakeNames?.() ?? [],

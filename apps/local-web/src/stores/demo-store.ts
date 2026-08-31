@@ -1101,6 +1101,9 @@ export const useDemoStore = defineStore("demo", () => {
    *  exchanges (Chad, 2026-08-30: “it's the sequence I say things”). A quiet
    *  microphone turning “What's up Pacino” into “What's that, Pac” cost takes
    *  all evening; nothing about a shoot should depend on transcription. */
+  /** A take is staged and the film is between exchanges. */
+  const wantsFilming = ref(false);
+
   function tellDaemonFilming(filming: boolean): void {
     void fetch("/voice/filming", {
       method: "POST",
@@ -1113,9 +1116,12 @@ export const useDemoStore = defineStore("demo", () => {
     if (isArmed.value) return;
     isArmed.value = true;
     writeDemoArmedFlag(true);
-    // Arming IS the request to listen, and to stop reading the words.
+    // Arming IS the request to listen. It is NOT the request to wake on any
+    // word: armed lasts a shooting day, and he still has to talk to people
+    // (Chad, 2026-08-30 — he was on another screen and could not stop it
+    // playing). Filming is switched on by staging a take and off again when
+    // that take signs off.
     keepDaemonListening();
-    tellDaemonFilming(true);
     rememberedLook = { shape: ui.displayShape, colour: ui.displayColour };
     void prepareAudio();
   }
@@ -1265,6 +1271,7 @@ export const useDemoStore = defineStore("demo", () => {
   function stageTake(scriptId: string): void {
     requestedScriptId.value = scriptId;
     keepDaemonListening();
+    wantsFilming.value = true;
     tellDaemonFilming(true);
     void warmTake(scriptId);
   }
@@ -1318,6 +1325,25 @@ export const useDemoStore = defineStore("demo", () => {
     }
   }
 
+  /** The whole conversation is over — stop waking on every word. */
+  function stopFilming(): void {
+    wantsFilming.value = false;
+    tellDaemonFilming(false);
+  }
+
+  // IT HEARD ITSELF (Chad, 2026-08-30). Waking on any word meant the film's
+  // own voice, out of the speakers and back down the microphone, fired the
+  // next exchange — and the one after that. It ran away and he could not
+  // stop it.
+  //
+  // The daemon's echo filter cannot help: it knows the sound IT played, and
+  // a take plays through the browser. So the room only listens while the film
+  // is silent and genuinely waiting on him. Speaking closes its own ears.
+  watch(
+    () => wantsFilming.value && !isRoutineRunning.value && !isSpeakingLine.value,
+    (listening) => tellDaemonFilming(listening),
+  );
+
   /** The show has signed off: everything under this goes to plain black
    *  until the next wake lifts it. Also raised for a beat at the top of a
    *  take, so exchange one is answered over black and the room's reveal
@@ -1335,6 +1361,8 @@ export const useDemoStore = defineStore("demo", () => {
       await playRecordedLine(DEMO_CONVERSATION_REPLIES.closing);
     } finally {
       isBlackout.value = true;
+      // The take is in the can: the room stops treating every word as a cue.
+      stopFilming();
       void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
     }
   }
@@ -1512,6 +1540,7 @@ export const useDemoStore = defineStore("demo", () => {
     requestRoutine,
     stageTake,
     warmTake,
+    stopFilming,
     tellDaemonFilming,
     keepDaemonListening,
     resetRoutineScene,
