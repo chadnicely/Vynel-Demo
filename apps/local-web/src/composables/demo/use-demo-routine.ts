@@ -54,7 +54,16 @@ export function useDemoRoutine(options: {
     // and the show's own black only went up several statements later — for
     // those frames the app underneath was on camera. Raising it first means
     // one black hands straight over to the other.
-    const opensTheVideo = demo.requestedPart === "opening";
+    // A WHOLE take opens a video too. Only the halves that CONTINUE one — the
+    // numbers, the products — join a room that is already lit.
+    //
+    // Missing “whole” here is why the Demo button flashed the dashboard: the
+    // slate is dismissed the instant a take runs, and with no black raised
+    // for this path there was nothing between the countdown and the room
+    // (Chad, 2026-08-31: “right after 3, 2, 1 it went to the Good morning
+    // screen”).
+    const opensTheVideo =
+      demo.requestedPart === "opening" || demo.requestedPart === "whole";
     if (opensTheVideo) demo.isBlackout = true;
     demo.isRoutineRunning = true;
     try {
@@ -135,8 +144,21 @@ export function useDemoRoutine(options: {
         );
         if (!demo.isRoutineRunning) return;
         await beat(CUT_BEAT_MS);
-        demo.finishedPart("opening");
-        return;
+        // Spoken, the film stops here and waits for his “yes”. Played from
+        // the Demo button it is a rehearsal of the whole thing, so it carries
+        // on into the numbers by itself.
+        if (demo.requestedPart === "opening") {
+          demo.finishedPart("opening");
+          return;
+        }
+        await demo.playRecordedLine(
+          (demo.takeToFilm?.conversation ?? FALLBACK_CONVERSATION).handover,
+        );
+        if (!demo.isRoutineRunning) return;
+        demo.isThinking = true;
+        await beat(GATHERING_MS);
+        demo.isThinking = false;
+        if (!demo.isRoutineRunning) return;
       }
 
       // The take asked for by name (a card's Demo button), else the queue's
