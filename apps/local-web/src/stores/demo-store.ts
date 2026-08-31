@@ -1230,6 +1230,13 @@ export const useDemoStore = defineStore("demo", () => {
    *  and mouth like it does for a live reply — the take makes no session of
    *  its own, so without it the orb sat still through a whole video. */
   const isSpeakingLine = ref(false);
+
+  /** IT IS LOOKING SOMETHING UP (Chad, 2026-08-30: make it real). An
+   *  assistant that answers the instant you stop talking is the loudest tell
+   *  that the answer was recorded: nothing real is that fast, and the eye
+   *  reads it as a soundboard. After it says it will check, it checks — a
+   *  beat with the room visibly working before the report arrives. */
+  const isThinking = ref(false);
   /** The sentence being said RIGHT NOW, how long the recording runs, and the
    *  screen that said it. A caption is typed across the duration rather than
    *  dumped in one frame, and it STAYS after the line ends — clearing it
@@ -1429,7 +1436,12 @@ export const useDemoStore = defineStore("demo", () => {
       void playClosingReply();
       return;
     }
-    requestedScriptId.value = null;
+    // KEEP THE TAKE HE PRESSED DEMO ON. Clearing it was right when a wake
+    // always meant “film whatever is next in the queue”; now the Demo button
+    // stages one and the whole conversation belongs to it, so wiping it here
+    // had the first exchange speak one take's greeting and the rest film a
+    // different video (Chad, 2026-08-31). A wake with nothing staged still
+    // films the queue's turn, exactly as before.
     requestedPart.value = nextPart.value;
     routineRequestCount.value += 1;
   }
@@ -1587,6 +1599,7 @@ export const useDemoStore = defineStore("demo", () => {
       return bank.durationOf(text);
     },
     isSpeakingLine,
+    isThinking,
     spokenLine,
     routineBoard,
     playRecordedLine,

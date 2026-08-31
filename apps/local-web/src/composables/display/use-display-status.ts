@@ -21,6 +21,7 @@ import {
   type DisplayStatusView,
 } from "./display-status-rows.js";
 import type { DisplayBoardChange } from "./use-display-widgets.js";
+import { useDemoStore } from "../../stores/demo-store.js";
 
 // Everything the Display's panels and strip show, derived in ONE place from
 // the reads the app ALREADY holds — the live socket, the working rail, the
@@ -89,6 +90,7 @@ export function useDisplayStatus(): DisplayStatus {
     };
   });
 
+  const demo = useDemoStore();
   const telemetry = ref<DisplayStatusRow[]>([]);
   // Baselined at setup, not at the first change: the feed replays every
   // in-flight turn when it subscribes, and that happens at app boot — long
@@ -114,6 +116,36 @@ export function useDisplayStatus(): DisplayStatus {
     );
     knownNeedYou = next;
   });
+
+  // THE ROOM MUST LOOK ALIVE (Chad, 2026-08-30: make it real). Off camera the
+  // telemetry log fills from real turns and real approvals. On camera there
+  // are none — the take is recorded audio over a scripted fleet — so the
+  // panel sat on “nothing yet” for the whole film while the assistant talked
+  // about a busy day. The two together read as a mock-up.
+  //
+  // So a filmed take writes its own log: each line it speaks lands in the
+  // telemetry as the thing that just happened. Nothing is invented that the
+  // film does not already say out loud.
+  watch(
+    () => demo.spokenLine,
+    (line) => {
+      if (line === null || !demo.isRoutineRunning) return;
+      telemetry.value = appendTelemetry(telemetry.value, [
+        {
+          label: clockLabel(new Date()),
+          value: shortenForLog(line.text),
+          tone: line.surface === "nodes" ? "live" : "default",
+        },
+      ]);
+    },
+  );
+
+  // A log row is a glance, not a sentence: the panel is six rows of a fixed
+  // width and a full line would wrap into three of them.
+  function shortenForLog(text: string): string {
+    const clean = text.replace(/\s+/g, " ").trim();
+    return clean.length <= 34 ? clean : `${clean.slice(0, 33)}…`;
+  }
 
   function noteBoardChange(change: DisplayBoardChange): void {
     telemetry.value = appendTelemetry(

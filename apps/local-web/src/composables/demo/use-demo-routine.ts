@@ -29,6 +29,11 @@ const ROOM_PAINT_MS = 320;
 const CUT_BEAT_MS = 180;
 /** The constellation mounts and lays out before the first product speaks. */
 const SCENE_SETTLE_MS = 420;
+/** How long it appears to be looking something up. Long enough to read as
+ *  work, short enough that nobody reaches for the remote. */
+const THINKING_MS = 1250;
+/** The shorter beat after he says yes — it is fetching, not researching. */
+const GATHERING_MS = 700;
 
 export function useDemoRoutine(options: {
   /** The shell's OWN display toggle — a second `useDisplayToggle()` here
@@ -145,7 +150,10 @@ export function useDemoRoutine(options: {
       if (part === "numbers") {
         await demo.playRecordedLine(talk.handover);
         if (!demo.isRoutineRunning) return;
-        await beat(CUT_BEAT_MS);
+        demo.isThinking = true;
+        await beat(GATHERING_MS);
+        demo.isThinking = false;
+        if (!demo.isRoutineRunning) return;
       }
       const lines =
         part === "whole" ? (take?.lines ?? []) : demo.takeLines(take, part);
@@ -163,6 +171,12 @@ export function useDemoRoutine(options: {
             // EXCHANGE TWO (Chad, 2026-08-29): "How we looking on software?"
             // — the reply on the orb, THEN the film cuts to the products.
             await demo.playRecordedLine(talk.software);
+            if (!demo.isRoutineRunning) return;
+            // It said it would check. So it checks.
+            demo.isThinking = true;
+            await beat(THINKING_MS);
+            demo.isThinking = false;
+            if (!demo.isRoutineRunning) return;
             if (!demo.isRoutineRunning) return;
             await router.push({ name: "nodes" });
             // The tab must not restore INTO the Display afterwards.
@@ -198,10 +212,16 @@ export function useDemoRoutine(options: {
       if (demo.requestedScriptId === null && part !== "opening") demo.advanceQueue();
     } finally {
       demo.isRoutineRunning = false;
+      demo.isThinking = false;
       // A run that ended mid-exchange-one must not leave the window black —
       // the sign-off's own blackout is raised after this, never during.
       demo.isBlackout = false;
-      demo.requestedScriptId = null;
+      // THE TAKE SURVIVES THE EXCHANGE. Clearing it here was right when a
+      // run WAS the whole film; now a film is four runs, and dropping the
+      // staged take after the first one meant exchanges two, three and four
+      // filmed whatever the queue's rotation offered instead — a different
+      // video, mid-video. It is released when the conversation ends.
+      if (demo.nextPart === "opening") demo.requestedScriptId = null;
       // An UNARMED rehearsal has no disarm coming to clean up after it — the
       // scripted fleet must not stay parked over the real one.
       if (!demo.isArmed) demo.clearRoutineScene();

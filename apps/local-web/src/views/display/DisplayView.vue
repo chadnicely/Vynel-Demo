@@ -348,8 +348,14 @@ const WIDGET_HINT = "Claude can put reports here";
         <p v-if="!hasOrb && shape.stage === 'orb'" class="quiet">
           Orb unavailable — status panels still live
         </p>
+        <!-- IT IS LOOKING SOMETHING UP. An assistant that answers the instant
+             you stop talking reads as a soundboard; this is the beat where it
+             goes and checks. -->
+        <p v-if="demo.isThinking" class="thinking" data-testid="demo-thinking">
+          <i /><i /><i />
+        </p>
         <DemoSpokenCaption
-          v-if="demo.spokenLine !== null && demo.spokenLine.surface === 'hud'"
+          v-else-if="demo.spokenLine !== null && demo.spokenLine.surface === 'hud'"
           :key="demo.spokenLine.text"
           :text="demo.spokenLine.text"
           :duration-ms="demo.spokenLine.durationMs"
@@ -644,6 +650,49 @@ const WIDGET_HINT = "Claude can put reports here";
     grid-template-columns: 1fr;
     grid-auto-rows: min-content;
     overflow-y: auto;
+  }
+}
+
+/* Three dots, breathing in turn — the shape every messaging app taught
+   people to read as “working on it”, so it needs no label. */
+.thinking {
+  display: flex;
+  gap: 7px;
+  margin: 0;
+  padding: 6px 0;
+}
+
+.thinking i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--display-accent, #4fd8ff);
+  box-shadow: 0 0 12px var(--display-glow, rgb(79 216 255 / 55%));
+  animation: thinking-pulse 1.1s ease-in-out infinite;
+}
+.thinking i:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.thinking i:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes thinking-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking i {
+    animation: none;
+    opacity: 0.7;
   }
 }
 </style>
