@@ -30,9 +30,9 @@ function take(money: boolean): DemoScriptLine[] {
 }
 
 describe("writeConversation", () => {
-  it("writes all four beats", () => {
+  it("writes all five beats", () => {
     const talk = writeConversation(take(true), PRODUCTS, "seed-1");
-    expect(conversationLines(talk)).toHaveLength(4);
+    expect(conversationLines(talk)).toHaveLength(5);
     for (const line of conversationLines(talk)) {
       expect(line.trim().length).toBeGreaterThan(0);
     }
@@ -76,6 +76,6 @@ describe("writeConversation", () => {
   });
 
   it("leaves a take written before conversations with something to say", () => {
-    expect(conversationLines(FALLBACK_CONVERSATION)).toHaveLength(4);
+    expect(conversationLines(FALLBACK_CONVERSATION)).toHaveLength(5);
   });
 });

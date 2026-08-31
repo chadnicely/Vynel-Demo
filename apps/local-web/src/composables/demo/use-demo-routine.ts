@@ -222,8 +222,10 @@ export function useDemoRoutine(options: {
       // the follow-up question, so signing off there would end the video
       // before the products were ever shown.
       if (demo.isRoutineRunning && part !== "opening") {
-        const conclusion = demo.activeScript?.conclusion ?? demo.pickConclusionLine();
-        if (conclusion !== null) await demo.playRecordedLine(conclusion);
+        // THE TAKE'S OWN WRAP. This drew from a small shared pool, so every
+        // take in a reel ended on the same sentence however different the
+        // rest of it was (Chad, 2026-08-31: “it always says the same end”).
+        await demo.playRecordedLine(talk.wrap, onNodes ? "nodes" : "hud");
       }
       // Where the next spoken trigger picks up.
       if (part !== "whole") demo.finishedPart(part);

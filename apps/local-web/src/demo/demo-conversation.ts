@@ -38,6 +38,10 @@ export interface DemoConversation {
   readonly handover: string;
   /** He asked about the software; this covers the cut to the products. */
   readonly software: string;
+  /** Said over the lit board, after the last product. It used to come from
+   *  a separate pool, so every take in a reel ended on the same sentence
+   *  however different the rest of it was (Chad, 2026-08-31). */
+  readonly wrap: string;
   /** The sign-off. After it, black. */
   readonly closing: string;
 }
@@ -293,6 +297,35 @@ function startSentences(line: string): string {
   );
 }
 
+/** The backstop wrap, for a reel long enough to spend the written bank. */
+const WRAPS = [
+  "And that's the lot. Nothing waiting on you.",
+  "That's the board. All of it ran itself.",
+  "So that's your day — busy, and none of it needed you.",
+  "Everything moved, nothing broke. I'll take that.",
+  "That's everything. Tidier than it was this morning.",
+  "Good day, that one.",
+  "All done, and not a decision in sight.",
+  "That's the fleet. Behaving itself.",
+];
+
+function buildWrap(
+  next: (size: number) => number,
+  products: readonly string[],
+): string {
+  const one = products[0];
+  const withName =
+    one === undefined
+      ? []
+      : [
+          `That's the board. ${one} did the heavy lifting today.`,
+          `And that's it — ${one} the standout.`,
+          `${one} carried today. The rest ticked along.`,
+        ];
+  const pool = [...WRAPS, ...withName];
+  return pool[next(pool.length)]!;
+}
+
 function buildClosing(next: (size: number) => number): string {
   return CLOSINGS[next(CLOSINGS.length)]!;
 }
@@ -359,6 +392,7 @@ export function writeConversation(
       opening: fill(written.opening, featured),
       handover: fill(written.handover, featured),
       software: fill(written.software, featured),
+      wrap: fill(written.wrap, featured),
       closing: fill(written.closing, featured),
     };
   }
@@ -371,6 +405,7 @@ export function writeConversation(
       opening: buildOpening(next, hasMoney),
       handover: buildHandover(next),
       software: buildSoftware(next, featured),
+      wrap: buildWrap(next, featured),
       closing: buildClosing(next),
     };
     if (!alreadyUsed.has(conversation.opening)) break;
@@ -386,6 +421,7 @@ export function conversationLines(
     conversation.opening,
     conversation.handover,
     conversation.software,
+    conversation.wrap,
     conversation.closing,
   ];
 }
@@ -396,5 +432,6 @@ export const FALLBACK_CONVERSATION: DemoConversation = {
   opening: "Everything's green — right on track. Want your updates?",
   handover: "Here's where we landed.",
   software: "Let me pull the dev log for you.",
+  wrap: "And that's your board — all of it running itself.",
   closing: "Any time, boss.",
 };

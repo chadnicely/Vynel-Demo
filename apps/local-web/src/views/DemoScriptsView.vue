@@ -226,7 +226,15 @@ const voiceLabel = useCurrentVoiceLabel();
  *  localStorage + IndexedDB, which the new tab shares, so it can film without
  *  copying anything across. */
 function filmInNewTab(scriptId: string): void {
-  window.open(`${location.origin}/?play=${encodeURIComponent(scriptId)}`, "_blank");
+  // The cache-buster is the fix for a bug that would not die (Chad,
+  // 2026-08-31: “you have NEVER gotten rid of it”). This URL was identical on
+  // every click, so Chrome happily served a CACHED copy of the page — and
+  // with it an old bundle, with old bugs, however many times they had been
+  // fixed in the build on disk. A fresh stamp per click forces a fresh load.
+  window.open(
+    `${location.origin}/?play=${encodeURIComponent(scriptId)}&fresh=${Date.now()}`,
+    "_blank",
+  );
 }
 
 /** When a take last ran — always date AND time (Chad, 2026-08-29): a reel is
