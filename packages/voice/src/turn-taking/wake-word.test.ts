@@ -172,3 +172,31 @@ describe('detectWakeWord — custom wake names', () => {
     expect(detectWakeWord('hey friday what time is it').detected).toBe(false)
   })
 })
+
+// THE THREE EXCHANGES he actually says to camera (Chad, 2026-08-30). Each one
+// has to wake on its own: the film stops between them, so a phrase that does
+// not match leaves him talking to a black screen.
+describe('the filmed conversation', () => {
+  it('opens on the demo wake', () => {
+    expect(detectWakeWord("What's up Pacino").detected).toBe(true)
+    expect(detectWakeWord('Wassup Pacino').detected).toBe(true)
+  })
+
+  it('asks for the software on the follow-up', () => {
+    expect(detectWakeWord("How's our software doing?").detected).toBe(true)
+    expect(detectWakeWord("What's the dev update?").detected).toBe(true)
+  })
+
+  it('signs off with thanks AND the name', () => {
+    expect(detectWakeWord('Thanks Pacino!').detected).toBe(true)
+    expect(detectWakeWord('Thank you Pacino').detected).toBe(true)
+    expect(detectWakeWord('Thanks Pacino').command).toBe('Thanks Pacino')
+  })
+
+  it('does not sign off on a bare thanks near the microphone', () => {
+    // Said to people on a set constantly; the name is what makes it a cue.
+    expect(detectWakeWord('thanks').detected).toBe(false)
+    expect(detectWakeWord('thanks so much for that').detected).toBe(false)
+    expect(detectWakeWord('thank you very much').detected).toBe(false)
+  })
+})

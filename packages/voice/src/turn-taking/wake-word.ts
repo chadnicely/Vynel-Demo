@@ -55,6 +55,16 @@ const DEMO_FOLLOWUP = [
 
 const DEMO_FOLLOWUP_PATTERN = new RegExp(`^[\\s,.!?-]*(?:${DEMO_FOLLOWUP})\\b`, 'i')
 
+// THE THIRD TRIGGER (Chad, 2026-08-30). The film is three exchanges and the
+// last one is the sign-off — "Thanks Pacino!" — after which the show goes to
+// black. It matched nothing at all, so a take could be opened and answered
+// but never ended: he said it to camera and the room simply carried on.
+//
+// The NAME is required. A bare "thanks" is one of the most common words near
+// an always-on microphone, and on a set it is said to people constantly.
+const DEMO_SIGNOFF = `(?:thanks|thank\\s*you|thankyou|cheers)[\\s,]+(?:${DEMO_WAKE_NAME})`
+const DEMO_SIGNOFF_PATTERN = new RegExp(`^[\\s,.!?-]*(?:${DEMO_SIGNOFF})\\b`, 'i')
+
 // greeting + separator + a wake-name token, anchored at the start. `/i` covers
 // casing; the trailing class eats the punctuation STT leaves after the name.
 const WAKE_PATTERN = new RegExp(
@@ -85,6 +95,11 @@ export function detectWakeWord(
   // The follow-up question wakes as itself and is handed over WHOLE — nothing
   // is peeled off, because the words are the request.
   if (DEMO_FOLLOWUP_PATTERN.test(transcript)) {
+    return { detected: true, command: transcript.trim() }
+  }
+  // The sign-off wakes as itself too — the surface that answers decides what
+  // it means, and for the film it means: say goodbye, then go to black.
+  if (DEMO_SIGNOFF_PATTERN.test(transcript)) {
     return { detected: true, command: transcript.trim() }
   }
   const match = transcript.match(WAKE_PATTERN)
