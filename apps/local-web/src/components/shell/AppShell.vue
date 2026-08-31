@@ -707,7 +707,7 @@ function onFilmSlateBlack(): void {
   if (demo.isArmed) {
     // Staged, not started: the take begins when HE does. The wake phrase runs
     // `takeToFilm`, which reads this request first.
-    demo.requestedScriptId = filmSlateScriptId;
+    demo.stageTake(filmSlateScriptId);
   } else {
     demo.requestRoutine(filmSlateScriptId);
   }

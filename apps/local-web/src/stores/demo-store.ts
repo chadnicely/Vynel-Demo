@@ -1075,10 +1075,25 @@ export const useDemoStore = defineStore("demo", () => {
    *  take must not overwrite their saved shape and colour. */
   let rememberedLook: { shape: string; colour: string } | null = null;
 
+  /** Put the daemon back on the microphone.
+   *
+   *  It hands the room to whichever window took a wake and stops transcribing
+   *  until that window says it is done. The film never says so — it answers
+   *  from recorded audio and has no recognizer — so one wake left the daemon
+   *  deaf for good: the next take could be staged, the screen went black, and
+   *  nothing was listening to start it (Chad, 2026-08-30). Armed, the room
+   *  always belongs to the daemon, and every beat of the film is spoken to
+   *  the same ears. */
+  function keepDaemonListening(): void {
+    void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
+  }
+
   function arm(): void {
     if (isArmed.value) return;
     isArmed.value = true;
     writeDemoArmedFlag(true);
+    // Arming IS the request to listen.
+    keepDaemonListening();
     rememberedLook = { shape: ui.displayShape, colour: ui.displayColour };
     void prepareAudio();
   }
@@ -1213,6 +1228,13 @@ export const useDemoStore = defineStore("demo", () => {
     requestedScriptId.value = scriptId ?? null;
     requestedPart.value = part;
     routineRequestCount.value += 1;
+  }
+
+  /** A take staged and waiting on his voice — the one moment the room MUST be
+   *  the daemon's, because nothing else is listening for the wake. */
+  function stageTake(scriptId: string): void {
+    requestedScriptId.value = scriptId;
+    keepDaemonListening();
   }
 
   /** What the next run plays: one half, or the take end to end. */
@@ -1431,6 +1453,8 @@ export const useDemoStore = defineStore("demo", () => {
     routineMessages,
     routineRequestCount,
     requestRoutine,
+    stageTake,
+    keepDaemonListening,
     resetRoutineScene,
     clearRoutineScene,
     lightProject,
