@@ -47,8 +47,10 @@ import {
   writeDemoArmedFlag,
 } from "../demo/demo-armed-flag.js";
 import {
-  DEMO_CONVERSATION_REPLIES,
-  demoReplyLines,
+  conversationLines,
+  writeConversation,
+  FALLBACK_CONVERSATION,
+  type DemoConversation,
 } from "../demo/demo-conversation.js";
 import { useUiStore } from "./ui-store.js";
 
@@ -81,6 +83,11 @@ export interface DemoScript {
   readonly intro?: string | null;
   /** The closing line, same rule. */
   readonly conclusion?: string | null;
+  /** THIS take's own dialogue, written when the take was (Chad, 2026-08-30).
+   *  Four beats: the status and the OFFER, the hand-in to the numbers, the
+   *  cut to the products, and the sign-off. Optional because takes written
+   *  before this carry none and fall back to the shipped one. */
+  readonly conversation?: DemoConversation;
   /** When he opened this take and read its lines (epoch ms). A deck of ten
    *  unfamiliar takes all look alike; the mark is how he finds his place
    *  again after walking away (Chad, 2026-08-30). Undefined = never read. */
@@ -105,7 +112,7 @@ export const DEMO_QUEUE_TARGET = 10;
 /** A take films in two halves, one per spoken trigger: the wake phrase plays
  *  the evening update, then a question about the software plays the products
  *  (Chad, 2026-08-28). */
-export type TakePart = "opening" | "software";
+export type TakePart = "opening" | "numbers" | "software";
 
 const DEMO_SCRIPTS_STORAGE_KEY = "vynel.demo-scripts";
 const DEMO_CLIP_COUNTER_STORAGE_KEY = "vynel.demo-clip-counter";
@@ -622,13 +629,32 @@ export const useDemoStore = defineStore("demo", () => {
     });
   }
 
+  /** The openings every queued take already uses — a reel of a hundred must
+   *  not open the same way twice. */
+  function usedOpenings(): Set<string> {
+    return new Set(
+      scripts.value
+        .map((script) => script.conversation?.opening)
+        .filter((line): line is string => typeof line === "string"),
+    );
+  }
+
   function adoptScript(lines: DemoScriptLine[], title: string): DemoScript {
+    const id = crypto.randomUUID();
     const script: DemoScript = {
-      id: crypto.randomUUID(),
+      id,
       title,
       lines,
       status: "pending",
       createdAt: Date.now(),
+      // Its own dialogue, written from its own content, avoiding whatever the
+      // rest of the queue already says.
+      conversation: writeConversation(
+        lines,
+        projects.value.map((project) => project.name),
+        id,
+        usedOpenings(),
+      ),
       greeting: pickDemoGreeting(Math.random),
       intro: pickIntroLine(),
       conclusion: pickConclusionLine(),
@@ -829,8 +855,8 @@ export const useDemoStore = defineStore("demo", () => {
     const updates = script.lines.filter((line) => line.surface !== "nodes");
     const products = script.lines.filter((line) => line.surface === "nodes");
     // A take with no products at all is one part: the opening IS the video.
-    if (products.length === 0) return part === "opening" ? updates : [];
-    return part === "opening" ? updates : products;
+    if (products.length === 0) return part === "software" ? [] : updates;
+    return part === "software" ? products : updates;
   }
 
   /** Where the conversation stands. WHEN he speaks decides what plays, never
@@ -970,11 +996,15 @@ export const useDemoStore = defineStore("demo", () => {
           ? [...allDemoGreetings(), ...framingLines.value]
           : settled;
     const wanted = [...new Set([...looking, ...approved, ...spokenAround])];
-    // The conversation's three replies are spoken in EVERY take, so they are
-    // banked whenever anything else is. Left out, the first "Hey Pacino" of
-    // film day would synthesize its reply live — with the latency the film
-    // exists to cut out.
-    return wanted.length === 0 ? wanted : [...new Set([...wanted, ...demoReplyLines()])];
+    // Each approved take's OWN dialogue, banked with its lines. Left out, the
+    // first "What's up Pacino" of film day would synthesize its reply live —
+    // with the latency the film exists to cut out.
+    const spoken = approvedScripts.value.flatMap((script) =>
+      conversationLines(script.conversation ?? FALLBACK_CONVERSATION),
+    );
+    return wanted.length === 0
+      ? wanted
+      : [...new Set([...wanted, ...spoken, ...conversationLines(FALLBACK_CONVERSATION)])];
   }
 
   /** How far the recording has got — shown on screen, so a slow first run
@@ -1277,14 +1307,14 @@ export const useDemoStore = defineStore("demo", () => {
     void warmTake(scriptId);
   }
 
-  /** THIS take's own lines and the three replies, ahead of everything else in
+  /** THIS take's own lines and its own dialogue, ahead of everything else in
    *  the queue. A full `prepareAudio()` here would put twenty other takes'
    *  lines in front of the one about to film. */
   async function warmTake(scriptId: string): Promise<void> {
     const take = scripts.value.find((script) => script.id === scriptId);
     if (take === undefined) return;
     const wanted = [
-      ...demoReplyLines(),
+      ...conversationLines(take.conversation ?? FALLBACK_CONVERSATION),
       ...[take.greeting, take.intro, take.conclusion].filter(
         (line): line is string => typeof line === "string" && line.length > 0,
       ),
@@ -1378,7 +1408,10 @@ export const useDemoStore = defineStore("demo", () => {
     // The daemon's native STT stays off the microphone while we speak.
     void fetch("/voice/session/start", { method: "POST" }).catch(() => {});
     try {
-      await playRecordedLine(DEMO_CONVERSATION_REPLIES.closing);
+      const take = takeToFilm.value;
+      await playRecordedLine(
+        (take?.conversation ?? FALLBACK_CONVERSATION).closing,
+      );
     } finally {
       isBlackout.value = true;
       // The take is in the can: the room stops treating every word as a cue.
@@ -1405,7 +1438,9 @@ export const useDemoStore = defineStore("demo", () => {
    *  where the conversation stands: after the opening comes the software,
    *  and after the software the sign-off. */
   function finishedPart(part: TakePart): void {
-    nextPart.value = part === "opening" ? "software" : "closing";
+    // Greeting -> the offer, yes -> the numbers, dev -> the products, thanks.
+    nextPart.value =
+      part === "opening" ? "numbers" : part === "numbers" ? "software" : "closing";
   }
 
   function resetRoutineScene(): void {

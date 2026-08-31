@@ -330,12 +330,17 @@ describe("demo-store two-part takes", () => {
     demo.requestSpokenRoutine("complete gibberish");
     expect(demo.requestedPart).toBe("opening");
 
-    // Second trigger is the software half — even misheard.
+    // Second trigger is his YES — the numbers.
     demo.finishedPart("opening");
     demo.requestSpokenRoutine("unrelated nonsense");
+    expect(demo.requestedPart).toBe("numbers");
+
+    // Third is the software half.
+    demo.finishedPart("numbers");
+    demo.requestSpokenRoutine("anything");
     expect(demo.requestedPart).toBe("software");
 
-    // Third trigger signs off: no new run, the show goes to black.
+    // Fourth signs off: no new run, the show goes to black.
     demo.finishedPart("software");
     const runsBefore = demo.routineRequestCount;
     demo.requestSpokenRoutine("anything at all");

@@ -2,7 +2,7 @@ import { nextTick, watch } from "vue";
 import { useRouter } from "vue-router";
 import { GLOBAL_TAB_ID, useUiStore } from "../../stores/ui-store.js";
 import { useDemoStore, DEMO_LINE_GAP_SECONDS } from "../../stores/demo-store.js";
-import { DEMO_CONVERSATION_REPLIES } from "../../demo/demo-conversation.js";
+import { FALLBACK_CONVERSATION } from "../../demo/demo-conversation.js";
 import { REVEAL_MS } from "../../demo/demo-reveal-chime.js";
 
 // The filmed routine, beat by beat (Chad, 2026-08-28): wake → the Display
@@ -49,7 +49,7 @@ export function useDemoRoutine(options: {
     // and the show's own black only went up several statements later — for
     // those frames the app underneath was on camera. Raising it first means
     // one black hands straight over to the other.
-    const opensTheVideo = demo.requestedPart !== "software";
+    const opensTheVideo = demo.requestedPart === "opening";
     if (opensTheVideo) demo.isBlackout = true;
     demo.isRoutineRunning = true;
     try {
@@ -121,9 +121,17 @@ export function useDemoRoutine(options: {
         // Let the hit land and the light finish arriving before it speaks.
         await beat(REVEAL_MS);
         if (!demo.isRoutineRunning) return;
-        await demo.playRecordedLine(DEMO_CONVERSATION_REPLIES.opening);
+        // IT OFFERS, IT DOES NOT LAUNCH IN (Chad, 2026-08-30). The take used
+        // to answer and run straight into the report. Now it says how things
+        // are and ASKS — and the film STOPS there, because the answer is his
+        // to give. “Yeah, go on” is a whole exchange of its own.
+        await demo.playRecordedLine(
+          (demo.takeToFilm?.conversation ?? FALLBACK_CONVERSATION).opening,
+        );
         if (!demo.isRoutineRunning) return;
         await beat(CUT_BEAT_MS);
+        demo.finishedPart("opening");
+        return;
       }
 
       // The take asked for by name (a card's Demo button), else the queue's
@@ -131,7 +139,14 @@ export function useDemoRoutine(options: {
       // take: the wake phrase the evening update, the follow-up question the
       // products (Chad, 2026-08-28).
       const take = demo.takeToFilm;
+      const talk = take?.conversation ?? FALLBACK_CONVERSATION;
       const part = demo.requestedPart;
+      // He said yes — hand in before the first figure lands.
+      if (part === "numbers") {
+        await demo.playRecordedLine(talk.handover);
+        if (!demo.isRoutineRunning) return;
+        await beat(CUT_BEAT_MS);
+      }
       const lines =
         part === "whole" ? (take?.lines ?? []) : demo.takeLines(take, part);
       // THE CAMERA FOLLOWS THE WORDS (Chad, 2026-08-28): the assistant's own
@@ -147,7 +162,7 @@ export function useDemoRoutine(options: {
           if (wantsNodes) {
             // EXCHANGE TWO (Chad, 2026-08-29): "How we looking on software?"
             // — the reply on the orb, THEN the film cuts to the products.
-            await demo.playRecordedLine(DEMO_CONVERSATION_REPLIES.software);
+            await demo.playRecordedLine(talk.software);
             if (!demo.isRoutineRunning) return;
             await router.push({ name: "nodes" });
             // The tab must not restore INTO the Display afterwards.
