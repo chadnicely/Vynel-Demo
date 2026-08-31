@@ -34,8 +34,17 @@ const WAKE_GREETING = 'hey|hi|hello|yo'
 // punctuation from ("What's up?" "Fine." → "whats up fine"), and "casino" (a
 // pacino garble AND a common word) beside "hey" would fire on TV audio. Each
 // side widens only the other's demo half.
-const DEMO_WAKE_NAME = 'pacino|pachino|pacheeno|patchino|puccino|pucino|casino'
-const DEMO_WAKE_GREETING = "what'?s[\\s,]+up|wass?up|whassup|sup"
+// “pac” is the tail the VAD leaves when he trails off on the last syllable —
+// observed live: “What's up Pacino” -> “What's that, Pac”. Safe HERE because
+// this list only pairs with the demo greetings below, which nothing says by
+// accident; it is kept OUT of the strict list that pairs with a bare “hey”.
+const DEMO_WAKE_NAME =
+  'pacino|pachino|pacheeno|patchino|puccino|pucino|pacinos|pachinos|pacen|pac|casino'
+// “what's that” is what a tiny STT returns for “what's up” often enough to
+// cost a take — observed live. Both halves must still be present, so this
+// only ever fires beside the name.
+const DEMO_WAKE_GREETING =
+  "what['’]?s[\\s,]+up|what['’]?s[\\s,]+that|whats[\\s,]+that|wass?up|whassup|sup"
 
 // “HEY Pacino” TOO (Chad, 2026-08-30). The pairing above wants the name
 // LAST — “what's up Pacino” — and he naturally says it first. On camera that
@@ -55,11 +64,11 @@ const DEMO_WAKE_NAME_STRICT = 'pacino|pachino|pacheeno|patchino|puccino|pucino'
 // The whole question survives as the command, so the surface that answers can
 // tell WHICH follow-up was asked.
 const DEMO_FOLLOWUP = [
-  "how(?:'?s| is| are)[\\s,]+(?:our|the|my)[\\s,]+(?:software|dev|development|dev team|development team|build team|crew|fleet|projects?)",
-  "how(?:'?s| is| are)[\\s,]+(?:the[\\s,]+)?(?:dev|development)[\\s,]+(?:team|updates?)",
-  "what(?:'?s| is)[\\s,]+(?:the[\\s,]+)?(?:dev|development|software|product)[\\s,]+(?:team[\\s,]+)?(?:updates?|news|doing)",
+  "how(?:['’]?s| is| are)[\\s,]+(?:our|the|my)[\\s,]+(?:software|dev|development|dev team|development team|build team|crew|fleet|projects?)",
+  "how(?:['’]?s| is| are)[\\s,]+(?:the[\\s,]+)?(?:dev|development)[\\s,]+(?:team|updates?)",
+  "what(?:['’]?s| is)[\\s,]+(?:the[\\s,]+)?(?:dev|development|software|product)[\\s,]+(?:team[\\s,]+)?(?:updates?|news|doing)",
   "give me[\\s,]+(?:the[\\s,]+)?(?:dev|development|software)[\\s,]+updates?",
-  "what(?:'?s| is)[\\s,]+(?:everyone|the team|the crew)[\\s,]+(?:been[\\s,]+)?(?:up to|working on|building)",
+  "what(?:['’]?s| is)[\\s,]+(?:everyone|the team|the crew)[\\s,]+(?:been[\\s,]+)?(?:up to|working on|building)",
 ].join('|')
 
 const DEMO_FOLLOWUP_PATTERN = new RegExp(`^[\\s,.!?-]*(?:${DEMO_FOLLOWUP})\\b`, 'i')
@@ -74,6 +83,10 @@ const DEMO_FOLLOWUP_PATTERN = new RegExp(`^[\\s,.!?-]*(?:${DEMO_FOLLOWUP})\\b`, 
 const DEMO_SIGNOFF = `(?:thanks|thank\\s*you|thankyou|cheers)[\\s,]+(?:${DEMO_WAKE_NAME})`
 const DEMO_SIGNOFF_PATTERN = new RegExp(`^[\\s,.!?-]*(?:${DEMO_SIGNOFF})\\b`, 'i')
 
+// APOSTROPHE: a transcriber may return the typographic one. Every contraction
+// below accepts both — “What’s up Pacino” is the same words as “What's up
+// Pacino” and used to be ignored (Chad, 2026-08-30).
+//
 // greeting + separator + a wake-name token, anchored at the start. `/i` covers
 // casing; the trailing class eats the punctuation STT leaves after the name.
 const WAKE_PATTERN = new RegExp(

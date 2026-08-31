@@ -223,3 +223,22 @@ describe('the name first, the way he actually says it', () => {
     expect(detectWakeWord("what's up casino").detected).toBe(true)
   })
 })
+
+// Straight off his machine, 2026-08-30 — the exact strings a quiet mic and a
+// tight VAD produced from "What's up Pacino". Each one cost a take.
+describe('the mishears that actually happened', () => {
+  it('wakes on the clipped and garbled forms', () => {
+    expect(detectWakeWord("What's that, Pac").detected).toBe(true)
+    expect(detectWakeWord(' What\u2019s up, Pacino').detected).toBe(true)
+    expect(detectWakeWord('whats that pacino').detected).toBe(true)
+    expect(detectWakeWord("what's up pac").detected).toBe(true)
+  })
+
+  it('still needs BOTH halves — a stray "pac" is not a cue', () => {
+    expect(detectWakeWord('pac').detected).toBe(false)
+    expect(detectWakeWord("what's that").detected).toBe(false)
+    expect(detectWakeWord('what was that').detected).toBe(false)
+    // Too short a tail to pair with a bare greeting.
+    expect(detectWakeWord('hey pac').detected).toBe(false)
+  })
+})
