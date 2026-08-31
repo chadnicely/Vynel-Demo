@@ -649,12 +649,7 @@ export const useDemoStore = defineStore("demo", () => {
       createdAt: Date.now(),
       // Its own dialogue, written from its own content, avoiding whatever the
       // rest of the queue already says.
-      conversation: writeConversation(
-        lines,
-        projects.value.map((project) => project.name),
-        id,
-        usedOpenings(),
-      ),
+      conversation: writeConversation(lines, projects.value, id, usedOpenings()),
       greeting: pickDemoGreeting(Math.random),
       intro: pickIntroLine(),
       conclusion: pickConclusionLine(),
@@ -724,14 +719,24 @@ export const useDemoStore = defineStore("demo", () => {
     while (scripts.value.length < target && guard-- > 0) {
       const lines = writeTakeLines();
       if (lines.length === 0) break;
+      // Create scripts writes ten takes at once, and each needs its OWN
+      // dialogue — this path built them without any, so a whole queue came
+      // out speaking the shipped fallback (Chad, 2026-08-31).
+      const id = crypto.randomUUID();
       scripts.value = [
         ...scripts.value,
         {
-          id: crypto.randomUUID(),
+          id,
           title: titleOf(lines),
           lines,
           status: "pending",
           createdAt: Date.now(),
+          conversation: writeConversation(
+            lines,
+            projects.value,
+            id,
+            usedOpenings(),
+          ),
           greeting: pickDemoGreeting(Math.random),
           intro: pickIntroLine(),
           conclusion: pickConclusionLine(),

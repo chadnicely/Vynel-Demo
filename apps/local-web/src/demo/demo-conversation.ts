@@ -233,6 +233,12 @@ const SUITE = "the Titanium Suite";
  *  different rhythm, different thing being said, some naming one product, some
  *  two, some naming the suite, some leading on the MCP work. Twenty shapes
  *  against twelve reactions and six hand-offs is well past a hundred takes. */
+/** “JuicyPops’s MCP” is a mouthful nobody says; a name already ending in s
+ *  takes the bare apostrophe. */
+function possessive(name: string): string {
+  return name.endsWith("s") ? `${name}’` : `${name}’s`;
+}
+
 function softwareShapes(
   reaction: string,
   handoff: string,
@@ -244,7 +250,7 @@ function softwareShapes(
   const count = products.length;
 
   const shapes = [
-    `${reaction} — ${one}'s MCP went in today. ${handoff}.`,
+    `${reaction} — ${possessive(one)} MCP went in today. ${handoff}.`,
     `${reaction}. ${SUITE} picked up more MCPs today. ${handoff}.`,
     `Where do I start — ${one} shipped${two === null ? "" : `, ${two} right behind`}. ${handoff}.`,
     `${reaction}. ${one} is where the hours went. ${handoff}.`,
@@ -254,7 +260,7 @@ function softwareShapes(
     `Quiet on most of it, but ${one} had a day. ${handoff}.`,
     `The MCPs are the story today, ${one} especially. ${handoff}.`,
     `Everything moved a little; ${one} moved a lot. ${handoff}.`,
-    `${one}'s in good shape now${two === null ? "" : `, and so is ${two}`}. ${handoff}.`,
+    `${one} is in good shape now${two === null ? "" : `, and so is ${two}`}. ${handoff}.`,
     `${SUITE} is coming together — ${pair} landed today. ${handoff}.`,
     `${reaction}. Mostly MCP work, mostly ${one}. ${handoff}.`,
     `Real progress on ${one} today. ${handoff}.`,
@@ -313,7 +319,7 @@ function fill(line: string, products: readonly string[]): string {
  *  reel of a hundred does not open the same way twice. */
 export function writeConversation(
   lines: readonly DemoScriptLine[],
-  productNames: readonly string[],
+  roster: readonly { readonly id: string; readonly name: string }[],
   seedText: string,
   alreadyUsed: ReadonlySet<string> = new Set(),
 ): DemoConversation {
@@ -322,15 +328,17 @@ export function writeConversation(
       line.surface !== "nodes" &&
       highlightLine(line.text)?.value.startsWith("$") === true,
   );
+  // BY ID, not by reading the sentence. A line only starts with its product's
+  // name when the pasted update did not already say it, so matching on the
+  // text missed every update written as "we shipped the X rebuild" — and the
+  // dev hand-off fell back to talking about nothing (Chad, 2026-08-31).
   const featured = [
     ...new Set(
       lines
-        .filter((line) => line.surface === "nodes")
+        .filter((line) => line.surface === "nodes" && line.projectId !== null)
         .map(
           (line) =>
-            productNames.find((name) =>
-              line.text.toLowerCase().startsWith(name.toLowerCase()),
-            ) ?? null,
+            roster.find((project) => project.id === line.projectId)?.name ?? null,
         )
         .filter((name): name is string => name !== null),
     ),

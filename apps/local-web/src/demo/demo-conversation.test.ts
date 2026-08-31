@@ -6,7 +6,11 @@ import {
 } from "./demo-conversation.js";
 import type { DemoScriptLine } from "./demo-script-writer.js";
 
-const PRODUCTS = ["Mintbird", "Quizforma", "Letterman"];
+const PRODUCTS = [
+  { id: "mintbird", name: "Mintbird" },
+  { id: "quizforma", name: "Quizforma" },
+  { id: "letterman", name: "Letterman" },
+];
 
 function take(money: boolean): DemoScriptLine[] {
   return [

@@ -35,7 +35,7 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
   {
     opening: "Evening. Everything's green — want your updates?",
     handover: "Right, here's how the day went.",
-    software: "Good one today. {product}'s MCP finally went in. Let me pull the log.",
+    software: "Good one today. The MCP work on {product} finally went in. Let me pull the log.",
     closing: "No problem, boss.",
   },
   {
@@ -163,7 +163,7 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     opening: "Good to see you. Sales are ahead — want me to run the update?",
     handover: "Course. Here's your day.",
     software:
-      "Really strong day. {product}'s MCP is in and working. Here's the log.",
+      "Really strong day. The MCP on {product} is in and working. Here's the log.",
     closing: "Say the word if you need more.",
     needsMoney: true,
   },
