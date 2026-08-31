@@ -8,6 +8,7 @@ import type { SceneMessage, SceneNode } from "../utils/constellation-scene.js";
 import {
   DEMO_PROJECTS,
   demoFleetNodes,
+  orderFleetForTake,
   demoNodeId,
   findMentionedProject,
   makeDemoProject,
@@ -1408,7 +1409,17 @@ export const useDemoStore = defineStore("demo", () => {
   }
 
   function resetRoutineScene(): void {
-    routineNodes.value = demoFleetNodes(projects.value).map((node) => ({
+    // The take owns the top of the ring — see orderFleetForTake.
+    const featured = [
+      ...new Set(
+        (takeToFilm.value?.lines ?? [])
+          .map((line) => line.projectId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    routineNodes.value = demoFleetNodes(
+      orderFleetForTake(projects.value, featured),
+    ).map((node) => ({
       ...node,
       status: "idle" as const,
     }));

@@ -185,6 +185,32 @@ export function findMentionedProject(
 /** The resting fleet — every roster project as a dot, statuses mixed the way a
  *  busy studio actually looks. The routine restates these live; this is what
  *  the screen shows before and between takes (and behind the Demo switch). */
+/** THE ONES THAT LIGHT UP GO ON TOP (Chad, 2026-08-30: “you can't see those
+ *  under it”). The constellation lays its ring out starting at the top and
+ *  running clockwise, so slot 0 is the top and the LAST slots come back round
+ *  to it from the left. A product that landed at the bottom of the ring spent
+ *  its whole moment behind the caption card.
+ *
+ *  Feeding the take's own products into those slots — first, last, second,
+ *  second-last — keeps every one of them in the upper arc, and leaves the
+ *  rest of the fleet to fill the bottom where nothing is asked of it. */
+export function orderFleetForTake(
+  roster: readonly DemoProject[],
+  featuredIds: readonly string[],
+): DemoProject[] {
+  const featured = roster.filter((project) => featuredIds.includes(project.id));
+  const rest = roster.filter((project) => !featuredIds.includes(project.id));
+  if (featured.length === 0) return [...roster];
+
+  const head: DemoProject[] = [];
+  const tail: DemoProject[] = [];
+  featured.forEach((project, index) => {
+    if (index % 2 === 0) head.push(project);
+    else tail.unshift(project);
+  });
+  return [...head, ...rest, ...tail];
+}
+
 export function demoFleetNodes(roster: readonly DemoProject[]): SceneNode[] {
   const status = (index: number): SceneNode["status"] =>
     (["building", "waiting", "done", "idle"] as const)[index % 4]!;
