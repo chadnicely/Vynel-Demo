@@ -93,6 +93,7 @@ import { useVoiceChatStatus } from "../../composables/sessions/use-voice-chat-st
 import { useSessionsNavigation } from "../../composables/sessions/use-sessions-navigation.js";
 import { useDemoRoutine } from "../../composables/demo/use-demo-routine.js";
 import DemoFilmSlate from "../demo/DemoFilmSlate.vue";
+import { playRevealChime, REVEAL_MS } from "../../demo/demo-reveal-chime.js";
 import { useDemoStore } from "../../stores/demo-store.js";
 import { useDisplayToggle } from "../../composables/display/use-display-toggle.js";
 import { useDisplayVoice } from "../../composables/display/use-display-voice.js";
@@ -660,6 +661,29 @@ useDemoRoutine({ showDisplay, leaveDisplay });
 // slate lifts. Unarmed (a rehearsal replay), the take starts itself off the
 // countdown; the slate lifts the same way, on the routine actually running.
 const filmSlateClip = ref<number | null>(null);
+
+/** THE ROOM COMING ALIVE (Chad, 2026-08-30). The cut from black to a lit
+ *  room happened in a single frame, silently — the moment a viewer decides
+ *  whether to keep watching. The black now blooms open from the centre while
+ *  a rising chime lands on the light, so the eye is already there when he
+ *  starts talking. */
+const revealing = ref(false);
+let revealTimer = 0;
+
+watch(
+  () => demo.isBlackout,
+  (black, wasBlack) => {
+    // Only black -> lit, and only while a take is on: leaving the room by
+    // hand should not sound like a title card.
+    if (black || wasBlack !== true || !demo.isRoutineRunning) return;
+    revealing.value = true;
+    playRevealChime();
+    window.clearTimeout(revealTimer);
+    revealTimer = window.setTimeout(() => (revealing.value = false), REVEAL_MS);
+  },
+);
+
+onBeforeUnmount(() => window.clearTimeout(revealTimer));
 let filmSlateScriptId: string | null = null;
 
 onMounted(() => {
@@ -995,6 +1019,9 @@ onBeforeUnmount(() => {
     <!-- The show's black: up over exchange one's reply until the reveal, and
          raised again by the sign-off. Under the slate, over everything else. -->
     <div v-if="demo.isBlackout" class="demo-blackout" data-testid="demo-blackout" />
+    <!-- The black opening from the centre. Pointer-events off: it is a
+         gesture over a live room, never a layer that swallows a click. -->
+    <div v-if="revealing" class="demo-reveal" data-testid="demo-reveal" />
     <AppTitleBar
       :theme="ui.theme"
       :nav-mode="ui.navMode"
@@ -1233,6 +1260,34 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .demo-blackout {
     animation: none;
+  }
+}
+
+.demo-reveal {
+  position: fixed;
+  inset: 0;
+  z-index: 98;
+  pointer-events: none;
+  background: #000;
+  /* The hole in the black, opening from the middle. A soft edge reads as
+     light arriving; a hard one reads as a mask sliding. */
+  animation: demo-reveal-open 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes demo-reveal-open {
+  from {
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 0%, #000 0%);
+    mask-image: radial-gradient(circle at 50% 50%, transparent 0%, #000 0%);
+  }
+  to {
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 130%, #000 175%);
+    mask-image: radial-gradient(circle at 50% 50%, transparent 130%, #000 175%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-reveal {
+    animation-duration: 1ms;
   }
 }
 </style>

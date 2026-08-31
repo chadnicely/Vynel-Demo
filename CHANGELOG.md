@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **The room comes alive instead of cutting to it.** Black to a lit room
+  happened in one frame with no sound — the moment a viewer decides whether
+  to keep watching. The black now blooms open from the centre while a rising
+  chime lands on the light: a filtered swell, a low body under it so it has
+  weight on a laptop, and two bell partials where the room arrives. All
+  synthesized, so there is no audio file to ship, wait on, or lose. It ends
+  before the assistant speaks — the reveal introduces the voice, it never
+  talks over it.
+
 - **Armed now means listening.** Arming used to mean only that a wake, IF one
   arrived, would run the routine instead of a real conversation — nothing
   opened a microphone. The film waited on the daemon's own wake-word model,
