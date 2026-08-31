@@ -56,6 +56,8 @@ export class VoiceSessionDriver {
   readonly #turnWatchdogMs: number
 
   #state: DriverState = 'asleep'
+  /** Demo Mode is armed: any utterance is the cue. See setFilming(). */
+  #filming = false
   #processing = false
   #idleTimer: ReturnType<typeof setTimeout> | null = null
   // The speaking mechanics (pipelining, the lane, the echo memory) live in the
@@ -194,6 +196,22 @@ export class VoiceSessionDriver {
    *  back off the speakers (the browser plays it, so the echo filter, which only
    *  knows the daemon's own speaker, never heard of it). Idempotent: a wake
    *  handoff already put us here, and the client announces its start anyway. */
+  /** FILMING (Chad, 2026-08-30: “it doesn't matter what I say — as soon as I
+   *  say something and stop it should go”).
+   *
+   *  A filmed take is three exchanges and the film decides which one plays by
+   *  COUNTING them, never by reading the words. Requiring a phrase put a
+   *  speech recogniser in the critical path of a shoot: a quiet microphone
+   *  turned “What's up Pacino” into “What's that, Pac” and the take was lost
+   *  while he stood in front of a camera. Filming, every real utterance is
+   *  the cue — he says his own line and the film moves with him.
+   *
+   *  Off by default and only ever set while Demo Mode is armed, because on
+   *  any other day a microphone that wakes on ANY speech is unusable. */
+  setFilming(filming: boolean): void {
+    this.#filming = filming
+  }
+
   beginHandoff(): void {
     if (this.#state === 'handed-off') return
     void this.#abandonRunningTurn()
@@ -287,9 +305,13 @@ export class VoiceSessionDriver {
       this.#startTurn(transcript)
       return
     }
-    const wake = detectWakeWord(transcript, {
-      extraWakeNames: this.#deps.readWakeNames?.() ?? [],
-    })
+    // Filming, ANY utterance is the cue and it is handed over whole — the
+    // film counts exchanges rather than reading words.
+    const wake = this.#filming
+      ? { detected: true, command: transcript.trim() }
+      : detectWakeWord(transcript, {
+          extraWakeNames: this.#deps.readWakeNames?.() ?? [],
+        })
     if (!wake.detected) return
     this.#deps.io.setState('wake')
     if (this.#deps.wakeHandoff?.shouldHandOff() === true) {

@@ -1096,12 +1096,26 @@ export const useDemoStore = defineStore("demo", () => {
     void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
   }
 
+  /** Tell the daemon whether a camera is running. Filming, it stops reading
+   *  the words and treats ANY utterance as the cue — the film counts his
+   *  exchanges (Chad, 2026-08-30: “it's the sequence I say things”). A quiet
+   *  microphone turning “What's up Pacino” into “What's that, Pac” cost takes
+   *  all evening; nothing about a shoot should depend on transcription. */
+  function tellDaemonFilming(filming: boolean): void {
+    void fetch("/voice/filming", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ filming }),
+    }).catch(() => {});
+  }
+
   function arm(): void {
     if (isArmed.value) return;
     isArmed.value = true;
     writeDemoArmedFlag(true);
-    // Arming IS the request to listen.
+    // Arming IS the request to listen, and to stop reading the words.
     keepDaemonListening();
+    tellDaemonFilming(true);
     rememberedLook = { shape: ui.displayShape, colour: ui.displayColour };
     void prepareAudio();
   }
@@ -1110,6 +1124,8 @@ export const useDemoStore = defineStore("demo", () => {
     if (!isArmed.value) return;
     isArmed.value = false;
     isBlackout.value = false;
+    // Off set, a microphone that wakes on any word is unusable.
+    tellDaemonFilming(false);
     // Walking off set puts the conversation back at its first exchange.
     nextPart.value = "opening";
     writeDemoArmedFlag(false);
@@ -1249,6 +1265,7 @@ export const useDemoStore = defineStore("demo", () => {
   function stageTake(scriptId: string): void {
     requestedScriptId.value = scriptId;
     keepDaemonListening();
+    tellDaemonFilming(true);
     void warmTake(scriptId);
   }
 
@@ -1495,6 +1512,7 @@ export const useDemoStore = defineStore("demo", () => {
     requestRoutine,
     stageTake,
     warmTake,
+    tellDaemonFilming,
     keepDaemonListening,
     resetRoutineScene,
     clearRoutineScene,

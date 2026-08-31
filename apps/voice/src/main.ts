@@ -32,6 +32,7 @@ import { createCallConversationHost } from './call/call-conversation-host.js'
 import { createCallSessionClient } from './call/call-session-client.js'
 import { serializeAsync } from './call/serialize-async.js'
 import { startOverlayChannel } from './overlay/overlay-channel.js'
+import { createFilmingRoute } from './audio/filming-route.js'
 import { createDevicesRoute } from './audio/devices-route.js'
 import { cpal } from './audio/cpal.js'
 import { createDisplayDockWindow } from './overlay/display-dock-window.js'
@@ -244,6 +245,15 @@ async function main(): Promise<void> {
         // The picker in Settings → Voice asks THIS side what it can bind — the
         // browser's own enumeration is a different view of the same machine.
         { path: '/devices', app: createDevicesRoute({ listDevices: () => cpal.getDevices(), logger }) },
+        // Demo Mode armed: the film counts his exchanges, so any utterance is
+        // the cue (see VoiceSessionDriver.setFilming).
+        {
+          path: '/filming',
+          app: createFilmingRoute({
+            setFilming: (filming) => nativeLeg?.driver.setFilming(filming),
+            logger,
+          }),
+        },
       ],
     },
   )
