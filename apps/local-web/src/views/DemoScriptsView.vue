@@ -89,6 +89,20 @@ const waitingScripts = computed(() =>
     demo.scripts.filter((script) => demo.scriptStage(script) !== "recorded"),
   ),
 );
+/** One phrase for the tab you are on — “8 waiting”. The old row counted the
+ *  takes twice in two units beside a badge counting lines, which read as a
+ *  contradiction (Chad, 2026-08-30). */
+const queueCount = computed(() => {
+  const count = shownScripts.value.length;
+  const word =
+    queueView.value === "ready"
+      ? "ready to film"
+      : queueView.value === "completed"
+        ? "completed"
+        : "waiting";
+  return `${count} ${word}`;
+});
+
 const shownScripts = computed(() => {
   if (queueView.value === "ready") return readyScripts.value;
   if (queueView.value === "completed") return completedScripts.value;
@@ -640,13 +654,7 @@ async function playWholeTake(script: DemoScript): Promise<void> {
     <!-- THE QUEUE — the page itself. -->
     <section class="panel">
       <div class="take-row">
-        <span class="counts">
-          <strong>{{ readyScripts.length }}</strong> ready to film ·
-          <!-- TAKES, said so. Beside a recording badge counting LINES, a bare
-               “10/10 written” read as a contradiction — two units, one word
-               (Chad, 2026-08-30). -->
-          {{ demo.scripts.length }}/{{ DEMO_QUEUE_TARGET }} takes written
-        </span>
+        <span class="counts">{{ queueCount }}</span>
         <span class="spacer" />
         <!-- Only where it applies: approving is the Waiting tab's job, and on
              Ready it is a button with nothing left to do (Chad, 2026-08-28). -->
