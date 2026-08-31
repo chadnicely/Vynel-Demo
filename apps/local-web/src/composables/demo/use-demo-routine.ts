@@ -40,6 +40,13 @@ export function useDemoRoutine(options: {
 
   async function run(): Promise<void> {
     if (demo.isRoutineRunning) return;
+    // BLACK BEFORE THE SLATE GOES (Chad, 2026-08-30: “it flashed back to the
+    // admin screen”). The slate is dismissed the moment a take starts running,
+    // and the show's own black only went up several statements later — for
+    // those frames the app underneath was on camera. Raising it first means
+    // one black hands straight over to the other.
+    const opensTheVideo = demo.requestedPart !== "software";
+    if (opensTheVideo) demo.isBlackout = true;
     demo.isRoutineRunning = true;
     try {
       // NEVER WAIT ON THE WHOLE BANK. Recording is one shared queue, so a take
@@ -83,13 +90,11 @@ export function useDemoRoutine(options: {
       // The room is dressed and greeted only when a take STARTS. The software
       // half continues a video already running: re-rolling the look or saying
       // hello again mid-film would break it in two.
-      const opensTheVideo = demo.requestedPart !== "software";
       if (opensTheVideo) {
         // EXCHANGE ONE (Chad, 2026-08-29): "Hey Pacino, what's up?" is
         // answered over the black — the slate's black hands off to ours in
         // the same paint — and only then does the room come on. The reply
         // replaced the scripted greeting: the film is a conversation now.
-        demo.isBlackout = true;
         await demo.playRecordedLine(DEMO_CONVERSATION_REPLIES.opening);
         if (!demo.isRoutineRunning) return;
         demo.randomizeLook();
