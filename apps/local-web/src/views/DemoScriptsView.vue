@@ -43,7 +43,14 @@ function stageLabel(script: DemoScript): string {
   const stage = demo.scriptStage(script);
   if (stage === "unread") return "Pending";
   if (stage === "recorded") return "Ready";
-  const { done, total } = demo.prepareProgress;
+  // THIS take's own lines. It used to show `prepareProgress`, which counts
+  // the whole recording queue — every unique line across every approved take
+  // plus the shared greeting and sign-off. On a card headed “7 lines” that
+  // read as “12/23”, two different totals on one row (Chad, 2026-08-30).
+  const total = script.lines.length;
+  const done = script.lines.filter(
+    (line) => demo.lineDurationSeconds(line.text) !== null,
+  ).length;
   const progress = total > 0 ? ` (${done}/${total} lines complete)` : "";
   return `Recording the voice with ${voiceLabel.value}${progress}`;
 }
