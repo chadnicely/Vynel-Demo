@@ -62,7 +62,22 @@ export function useDemoRoutine(options: {
       // to the same ears. A wake landing while a take is already running is
       // harmless — `run()` returns early — so the assistant's own voice coming
       // back off the speakers cannot skip him ahead.
-      if (!demo.isArmed) {
+      if (demo.isArmed) {
+        // GIVE THE ROOM BACK (Chad, 2026-08-30). Delivering a wake to a
+        // wake-capable window hands the daemon's microphone to that window
+        // and stops it transcribing — it expects a browser recognizer to take
+        // over the conversation. The film has none: it answers from recorded
+        // audio. So the handoff left NOBODY listening, and the second and
+        // third exchanges could not be spoken at all. Measured on his machine:
+        // the microphone still captured his voice (rms 0.08, plainly speech)
+        // and not one segment was cut from it.
+        //
+        // Ending the handoff immediately puts the daemon back to wake-
+        // listening for the rest of the shoot. A wake landing mid-take is
+        // harmless — `run()` returns early — so the assistant's own voice off
+        // the speakers cannot skip an exchange.
+        void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
+      } else {
         void fetch("/voice/session/start", { method: "POST" }).catch(() => {});
       }
       // The room is dressed and greeted only when a take STARTS. The software
@@ -152,11 +167,10 @@ export function useDemoRoutine(options: {
       // An UNARMED rehearsal has no disarm coming to clean up after it — the
       // scripted fleet must not stay parked over the real one.
       if (!demo.isArmed) demo.clearRoutineScene();
-      // Only ever released if we took it — armed, the daemon never handed it
-      // over, and ending a handoff it never began would sleep it mid-shoot.
-      if (!demo.isArmed) {
-        void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
-      }
+      // Armed, the room is already back with the daemon and must STAY there:
+      // the next exchange is spoken to it. Unarmed, this releases the handoff
+      // the take took.
+      void fetch("/voice/session/end", { method: "POST" }).catch(() => {});
     }
   }
 
