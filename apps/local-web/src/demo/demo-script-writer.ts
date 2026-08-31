@@ -402,11 +402,19 @@ export function writeDemoTake(options: WriteTakeOptions): DemoScriptLine[] {
   // starred past its whole budget runs long, and even then one product slot
   // survives, because a demo reel with no software in it is not the video
   // being made.
-  // THE SHAPE OF A TAKE (Chad, 2026-08-28): an evening update on the orb, ONE
-  // cut to the products, then back to the orb to close on a couple more. Two
-  // cuts, not four — each swap is a route change, and the earlier
-  // trade-every-line version filmed badly. Starred lines take the HUD's slots
-  // in order, so they land in the opener before the closer.
+  // THE SHAPE OF A TAKE (Chad, 2026-08-30): every update together, then every
+  // product together. ONE seam in the whole film.
+  //
+  // The shape IS the conversation. He speaks three times: the first plays
+  // the updates and stops, the second plays the products and stops, the
+  // third signs off. `takeLines` splits the take at its first node line, so
+  // an update stranded after the products was not just an extra cut — it was
+  // an update that could only be reached by asking about SOFTWARE. Two
+  // stretches on the orb meant the film cut back mid-answer, which is the
+  // part that never made sense on camera.
+  //
+  // `openerCount` and `closerCount` are kept as separate knobs — together
+  // they are the update budget, and callers already pass them.
   const softwareSlots = Math.min(chosen.length, softwareCount);
   // Products with nothing to say hand their room back to the assistant, so a
   // take is a whole video even before a single update has been pasted in.
@@ -420,12 +428,12 @@ export function writeDemoTake(options: WriteTakeOptions): DemoScriptLine[] {
     }
   };
 
-  speakHud(openerCount + spareHud);
+  // Every star must be said, so the update block never runs shorter than the
+  // starred queue — they have nowhere else to go now.
+  speakHud(Math.max(openerCount + closerCount + spareHud, starredQueue.length));
   for (let slot = 0; slot < softwareSlots; slot += 1) {
     lines.push(nextProjectLine(chosen[slot % chosen.length]!));
   }
-  // Every star must be said even if the closer's own slots ran out first.
-  speakHud(Math.max(closerCount, starredQueue.length));
 
   return lines;
 }

@@ -148,16 +148,31 @@ describe("writeDemoTake", () => {
     for (const line of nodeLines) expect(line.projectId).not.toBeNull();
   });
 
-  // TWO cuts, not four: an evening update on the orb, one cut to the products
-  // while they all light in turn, then back to the orb to close.
-  it("opens on the HUD, keeps the nodes together, and closes back on the HUD", () => {
+  // TWO GROUPS, ONE SEAM (Chad, 2026-08-30): every update together, then
+  // every product together. The shape is the conversation — he speaks once
+  // for the updates and once for the products, and `takeLines` splits the
+  // take at its first node line. An update stranded after the products could
+  // only be reached by asking about SOFTWARE, and the film cut back to the
+  // orb mid-answer to say it.
+  it("writes the take as two groups: every update, then every product", () => {
     const surfaces = take().map((line) => line.surface);
     expect(surfaces[0]).toBe("hud");
-    expect(surfaces.at(-1)).toBe("hud");
+    expect(surfaces.at(-1)).toBe("nodes");
     const boundaries = surfaces.filter(
       (surface, index) => index > 0 && surface !== surfaces[index - 1],
     );
-    expect(boundaries).toEqual(["nodes", "hud"]);
+    expect(boundaries).toEqual(["nodes"]);
+  });
+
+  it("splits into the two halves the conversation asks for", () => {
+    const lines = take();
+    const seam = lines.findIndex((line) => line.surface === "nodes");
+    const updates = lines.slice(0, seam);
+    const products = lines.slice(seam);
+    expect(updates.length).toBeGreaterThan(0);
+    expect(products.length).toBeGreaterThan(0);
+    expect(updates.every((line) => line.surface === "hud")).toBe(true);
+    expect(products.every((line) => line.surface === "nodes")).toBe(true);
   });
 
   it("reserves at least half the take for the software", () => {

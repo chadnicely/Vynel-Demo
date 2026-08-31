@@ -9,6 +9,15 @@ module-by-module move log) lives in `.claude/journal/` and `.claude/STATE.md`. E
 
 ### Added
 
+- **A take is two groups now: every update, then every product.** It used to
+  be written update → products → two more updates, so the film cut back to
+  the orb after the constellation. That was not just an extra cut: the take
+  splits at its first product line, so those trailing updates could only be
+  reached by asking about SOFTWARE — the conversation asks once for the
+  updates and once for the products, and the shape has to match. One seam in
+  the whole film. Takes written before this keep their old order; write new
+  ones to get the new shape.
+
 - **The headline under a figure reads like English.** Watching takes back
   turned up five ways the board could embarrass itself on camera: “$1,896
   SINCE” (a preposition read as the subject), “467 WE'VE” (a pronoun hiding
