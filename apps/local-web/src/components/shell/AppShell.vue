@@ -661,6 +661,7 @@ useDemoRoutine({ showDisplay, leaveDisplay });
 // slate lifts. Unarmed (a rehearsal replay), the take starts itself off the
 // countdown; the slate lifts the same way, on the routine actually running.
 const filmSlateClip = ref<number | null>(null);
+let filmSlateScriptId: string | null = null;
 
 /** THE ROOM COMING ALIVE (Chad, 2026-08-30). The cut from black to a lit
  *  room happened in a single frame, silently — the moment a viewer decides
@@ -684,17 +685,22 @@ watch(
 );
 
 onBeforeUnmount(() => window.clearTimeout(revealTimer));
-let filmSlateScriptId: string | null = null;
 
-onMounted(() => {
+// THE SLATE IS UP ON THE FIRST PAINT (Chad, 2026-08-30: “it still flashed
+// that dashboard”). This ran in onMounted, which is AFTER Vue has rendered
+// and the browser has painted — so a take opening in its own tab showed the
+// dashboard for a frame before the slate covered it. Read during setup and
+// the very first frame is already the slate.
+{
   const play = new URLSearchParams(window.location.search).get("play");
-  if (play === null) return;
-  const url = new URL(window.location.href);
-  url.searchParams.delete("play");
-  window.history.replaceState({}, "", url);
-  filmSlateScriptId = play;
-  filmSlateClip.value = demo.assignClipNumber(play);
-});
+  if (play !== null) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("play");
+    window.history.replaceState({}, "", url);
+    filmSlateScriptId = play;
+    filmSlateClip.value = demo.assignClipNumber(play);
+  }
+}
 
 // THE CLICKER (Chad, 2026-08-30: “its not hearing me”). Filming should not
 // depend on the microphone: any of these keys advances the conversation

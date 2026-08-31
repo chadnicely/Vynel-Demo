@@ -50,6 +50,10 @@ const NOTHING_SAID_LINE = "That's done — I didn't have anything to say about i
 
 type DriverState = 'asleep' | 'active' | 'in-turn' | 'relaying' | 'handed-off'
 
+/** How long he may pause mid-sentence before the film takes him as finished.
+ *  Longer than a comma, shorter than a beat between two takes. */
+const FILMED_CUE_SETTLE_MS = 1100
+
 /** How long a staged take may keep the room waking on any word. */
 const FILMING_TTL_MS = 15 * 60 * 1000
 
@@ -77,6 +81,9 @@ export class VoiceSessionDriver {
    *  setFilming(). */
   #filming = false
   #filmingUntil = 0
+  /** What he has said so far this cue, across the pauses in it. */
+  #filmedCue = ''
+  #filmedCueTimer: ReturnType<typeof setTimeout> | null = null
   #processing = false
   #idleTimer: ReturnType<typeof setTimeout> | null = null
   // The speaking mechanics (pipelining, the lane, the echo memory) live in the
@@ -229,6 +236,11 @@ export class VoiceSessionDriver {
    *  any other day a microphone that wakes on ANY speech is unusable. */
   setFilming(filming: boolean): void {
     this.#filming = filming
+    if (!filming) {
+      if (this.#filmedCueTimer !== null) clearTimeout(this.#filmedCueTimer)
+      this.#filmedCueTimer = null
+      this.#filmedCue = ''
+    }
     // A DEAD MAN'S SWITCH. Filming makes the microphone wake on any word in
     // the room, so it must never be able to outlive the take that asked for
     // it: a browser that crashes, a tab closed mid-shoot, or a message that
@@ -342,21 +354,53 @@ export class VoiceSessionDriver {
     }
     // Filming, ANY utterance is the cue and it is handed over whole — the
     // film counts exchanges rather than reading words.
-    const wake = this.#isFilming
-      ? { detected: isSpokenCue(transcript), command: transcript.trim() }
-      : detectWakeWord(transcript, {
-          extraWakeNames: this.#deps.readWakeNames?.() ?? [],
-        })
+    if (this.#isFilming) {
+      this.#gatherFilmedCue(transcript)
+      return
+    }
+    const wake = detectWakeWord(transcript, {
+      extraWakeNames: this.#deps.readWakeNames?.() ?? [],
+    })
     if (!wake.detected) return
+    this.#deliverWake(wake.command)
+  }
+
+  /** WAIT FOR HIM TO FINISH (Chad, 2026-08-30). He meant to say “Nice — and
+   *  how did we do with development?” and the film left on “Nice”: the voice
+   *  detector cuts a segment at any pause, so a sentence with a comma in it
+   *  arrives in pieces and the first piece was taken as the whole cue.
+   *
+   *  Filming, segments are gathered instead. The cue is delivered once he has
+   *  been quiet long enough to have meant it — which is what “say something
+   *  and stop” actually asks for. */
+  #gatherFilmedCue(transcript: string): void {
+    const heard = `${this.#filmedCue} ${transcript}`.trim()
+    // Nothing but room noise so far: keep waiting rather than starting a
+    // sentence out of a chair creak.
+    if (!isSpokenCue(heard)) return
+    this.#filmedCue = heard
+    if (this.#filmedCueTimer !== null) clearTimeout(this.#filmedCueTimer)
+    this.#filmedCueTimer = setTimeout(() => {
+      const command = this.#filmedCue
+      this.#filmedCue = ''
+      this.#filmedCueTimer = null
+      if (this.#state !== 'asleep' || !this.#isFilming) return
+      this.#deps.logger.debug({ command }, 'filmed cue')
+      this.#deliverWake(command)
+    }, FILMED_CUE_SETTLE_MS)
+  }
+
+  /** The wake path, shared by the phrase and the filmed cue. */
+  #deliverWake(command: string): void {
     this.#deps.io.setState('wake')
     if (this.#deps.wakeHandoff?.shouldHandOff() === true) {
       void this.#abandonRunningTurn()
       this.#state = 'handed-off'
-      this.#deps.wakeHandoff.publishWake(wake.command)
+      this.#deps.wakeHandoff.publishWake(command)
       return
     }
-    if (wake.command) {
-      this.#startTurn(wake.command)
+    if (command) {
+      this.#startTurn(command)
       return
     }
     // Bare "hey vynel" — the user wants the room (even over a late answer
