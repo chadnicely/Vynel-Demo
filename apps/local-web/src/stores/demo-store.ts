@@ -629,13 +629,15 @@ export const useDemoStore = defineStore("demo", () => {
     });
   }
 
-  /** The openings every queued take already uses — a reel of a hundred must
-   *  not open the same way twice. */
+  /** Every conversation line the queue already says. A reel must not open,
+   *  end, or sign off the same way twice — the ending was the one he heard
+   *  repeat (Chad, 2026-09-01). */
   function usedOpenings(): Set<string> {
     return new Set(
-      scripts.value
-        .map((script) => script.conversation?.opening)
-        .filter((line): line is string => typeof line === "string"),
+      scripts.value.flatMap((script) => {
+        const talk = script.conversation;
+        return talk === undefined ? [] : [talk.opening, talk.wrap, talk.closing];
+      }),
     );
   }
 

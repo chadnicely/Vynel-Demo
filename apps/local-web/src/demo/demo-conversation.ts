@@ -28,7 +28,10 @@
 
 import type { DemoScriptLine } from "./demo-script-writer.js";
 import { highlightLine } from "./demo-line-highlight.js";
-import { WRITTEN_CONVERSATIONS } from "./demo-conversation-bank.js";
+import {
+  WRITTEN_CONVERSATIONS,
+  type WrittenConversation,
+} from "./demo-conversation-bank.js";
 
 /** The four things the assistant says, for one take. */
 export interface DemoConversation {
@@ -379,11 +382,26 @@ export function writeConversation(
 
   const seed = hash(seedText);
   // A take with no money may not claim any: those sets are simply not offered.
+  // A set that speaks of two products needs two: with one, {other} filled with
+  // the same name and the line said “Quizforma is in good shape, and so is
+  // Quizforma” (2026-09-01).
+  const wantsTwo = (written: WrittenConversation): boolean =>
+    [written.opening, written.handover, written.software, written.wrap, written.closing].some(
+      (line) => line.includes("{other}"),
+    );
   const eligible = WRITTEN_CONVERSATIONS.filter(
-    (written) => hasMoney || written.needsMoney !== true,
+    (written) =>
+      (hasMoney || written.needsMoney !== true) &&
+      (featured.length >= 2 || !wantsTwo(written)),
   );
+  // No line it says may already be said by another take in the queue — the
+  // opener was deduped and the ENDING still repeated, which is the one he
+  // heard every time (Chad, 2026-08-31; “more personal and real”, 09-01).
   const fresh = eligible.filter(
-    (written) => !alreadyUsed.has(fill(written.opening, featured)),
+    (written) =>
+      !alreadyUsed.has(fill(written.opening, featured)) &&
+      !alreadyUsed.has(fill(written.wrap, featured)) &&
+      !alreadyUsed.has(fill(written.closing, featured)),
   );
   const pool = fresh.length > 0 ? fresh : [];
   if (pool.length > 0) {
@@ -408,7 +426,12 @@ export function writeConversation(
       wrap: buildWrap(next, featured),
       closing: buildClosing(next),
     };
-    if (!alreadyUsed.has(conversation.opening)) break;
+    if (
+      !alreadyUsed.has(conversation.opening) &&
+      !alreadyUsed.has(conversation.wrap) &&
+      !alreadyUsed.has(conversation.closing)
+    )
+      break;
   }
   return conversation;
 }
