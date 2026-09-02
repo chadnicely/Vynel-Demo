@@ -52,6 +52,7 @@ import {
   FALLBACK_CONVERSATION,
   type DemoConversation,
 } from "../demo/demo-conversation.js";
+import { prepareRevealChime } from "../demo/demo-reveal-chime.js";
 import { useUiStore } from "./ui-store.js";
 
 // Demo Mode — the filmed routine's home (Chad, 2026-08-28). Scripts are
@@ -1316,6 +1317,8 @@ export const useDemoStore = defineStore("demo", () => {
   function stageTake(scriptId: string): void {
     requestedScriptId.value = scriptId;
     keepDaemonListening();
+    // The reveal's WAV renders in the slate's dead time, not at the moment.
+    prepareRevealChime();
     wantsFilming.value = true;
     tellDaemonFilming(true);
     void warmTake(scriptId);

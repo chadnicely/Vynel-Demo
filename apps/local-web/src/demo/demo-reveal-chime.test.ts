@@ -1,34 +1,40 @@
-import { describe, expect, it, vi } from "vitest";
-import { playRevealChime, REVEAL_MS } from "./demo-reveal-chime.js";
+import { describe, expect, it } from "vitest";
+import { playRevealChime, prepareRevealChime, REVEAL_MS } from "./demo-reveal-chime.js";
 
+// The chime renders offline and plays through an <audio> element — the same
+// door the take's recorded lines use — because a live Web Audio context in a
+// tab he never clicked stays suspended, and the first build played into it:
+// a chime, delivered to nobody ("I didn't hear volume!", 2026-09-01).
 describe("playRevealChime", () => {
-  it("is silent where the machine has no audio at all", () => {
-    // A room with no sound must never be a room that fails to open.
-    const original = Reflect.get(globalThis, "AudioContext");
-    Reflect.deleteProperty(globalThis, "AudioContext");
+  it("is silent where the machine cannot render audio at all", () => {
+    // jsdom has no OfflineAudioContext, which makes this suite the machine
+    // in question: the reveal must still be a reveal, just a silent one.
     expect(() => playRevealChime()).not.toThrow();
-    if (original !== undefined) Reflect.set(globalThis, "AudioContext", original);
+    expect(() => prepareRevealChime()).not.toThrow();
   });
 
-  it("survives a browser that refuses to open an audio context", () => {
-    const original = Reflect.get(globalThis, "AudioContext");
+  it("survives a renderer that throws", () => {
+    const original = Reflect.get(globalThis, "OfflineAudioContext");
     Reflect.set(
       globalThis,
-      "AudioContext",
+      "OfflineAudioContext",
       class {
         constructor() {
-          throw new Error("blocked until a user gesture");
+          throw new Error("no audio hardware");
         }
       },
     );
     expect(() => playRevealChime()).not.toThrow();
-    if (original === undefined) Reflect.deleteProperty(globalThis, "AudioContext");
-    else Reflect.set(globalThis, "AudioContext", original);
+    if (original === undefined) {
+      Reflect.deleteProperty(globalThis, "OfflineAudioContext");
+    } else {
+      Reflect.set(globalThis, "OfflineAudioContext", original);
+    }
   });
 
   it("ends before the assistant speaks", () => {
-    // The reveal introduces the voice; it must never talk over it. The opening
-    // reply runs ~1.5s, so the gesture has to be well inside that.
+    // The reveal introduces the voice; it must never talk over it. The
+    // opening reply runs ~1.5s, so the gesture has to be well inside that.
     expect(REVEAL_MS).toBeLessThan(1200);
   });
 });
