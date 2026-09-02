@@ -187,6 +187,26 @@ export function useDemoRoutine(options: {
       const take = demo.takeToFilm;
       const talk = take?.conversation ?? FALLBACK_CONVERSATION;
       const part = demo.requestedPart;
+      // EVERY exchange speaks over the room, not over whatever screen the
+      // wake happened to land on. The continuing halves used to assume the
+      // room was already up — true in the ideal conversation, and false the
+      // moment a wake arrives out of order, after a reload, or in a tab
+      // still sitting on the dashboard (Chad, 2026-09-01).
+      if (
+        !opensTheVideo &&
+        part !== "software" &&
+        document.querySelector('[data-testid="display-stage"]') === null
+      ) {
+        demo.isBlackout = true;
+        ui.activateTab(GLOBAL_TAB_ID);
+        options.showDisplay();
+        await nextTick();
+        await waitForRoomPainted();
+        if (!demo.isRoutineRunning) return;
+        demo.isBlackout = false;
+        await beat(REVEAL_MS);
+        if (!demo.isRoutineRunning) return;
+      }
       // He said yes — hand in before the first figure lands.
       if (part === "numbers") {
         await demo.playRecordedLine(talk.handover);

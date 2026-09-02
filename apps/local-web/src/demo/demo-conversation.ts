@@ -51,15 +51,19 @@ export interface DemoConversation {
 
 // ── The parts ─────────────────────────────────────────────────────────────
 
+/** IT SAYS HI FIRST, always with him in it (Chad, 2026-09-01): whatever he
+ *  opens with, the answer greets HIM back before any status. The empty
+ *  greeting and the bare “Evening” openings read as a machine taking its
+ *  cue, not a colleague saying hello. */
 const GREETINGS = [
-  "Morning",
+  "Hey Chad",
+  "Hi Chad",
   "Hey boss",
-  "Evening",
-  "Good to see you",
-  "Hey",
-  "Right on time",
-  "Perfect timing",
-  "",
+  "Morning, Chad",
+  "Evening, boss",
+  "Hey Chad, good to see you",
+  "Hey boss, right on time",
+  "Hey Chad — how's it going?",
 ];
 
 /** Only for a take that actually reports money. */
@@ -213,8 +217,7 @@ function buildOpening(next: (size: number) => number, hasMoney: boolean): string
     ? STATUS_MONEY[next(STATUS_MONEY.length)]!
     : STATUS_PLAIN[next(STATUS_PLAIN.length)]!;
   const offer = OFFERS[next(OFFERS.length)]!;
-  const head = greeting.length > 0 ? `${greeting} — ${status}` : capitalize(status);
-  return `${sentence([head])} ${offer}`;
+  return `${sentence([`${greeting}. ${capitalize(status)}`])} ${offer}`;
 }
 
 function buildHandover(next: (size: number) => number): string {

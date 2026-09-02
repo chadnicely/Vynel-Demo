@@ -43,7 +43,7 @@ export interface WrittenConversation {
 
 export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
   {
-    opening: "Evening. Everything's green — want your updates?",
+    opening: "Hey Chad. Everything's green over here — want your updates?",
     handover: "Right, here's how the day went.",
     software: "Good one today. The MCP work on {product} finally went in. Let me pull the log.",
     wrap: "And that's the lot. Quiet day, in the best way.",
@@ -57,7 +57,7 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     closing: "Have a good one, Chad.",
   },
   {
-    opening: "Perfect timing — sales are already ahead. Want the rundown?",
+    opening: "Hey Chad, perfect timing — sales are already ahead. Want the rundown?",
     handover: "Sure thing. Here's your day.",
     software: "Where do I start. {product} shipped, {other} right behind it. Here's the log.",
     wrap: "Good day, that. The kind you'd want on video.",
@@ -65,14 +65,14 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     needsMoney: true,
   },
   {
-    opening: "Morning. All on track, nothing on fire. Ready for your update?",
+    opening: "Morning, Chad. All on track, nothing on fire — ready for your update?",
     handover: "Absolutely. This is what came in.",
     software: "The Titanium Suite's a bit stronger tonight than it was this morning. Let me show you.",
     wrap: "Nothing dramatic. Just everything doing what it should.",
     closing: "Any time. I'll keep watch.",
   },
   {
-    opening: "Good to see you. The money's moving nicely — want me to run through it?",
+    opening: "Hey boss, good to see you. The money's moving nicely — want me to run through it?",
     handover: "Of course. Here's the day.",
     software: "Solid day. We got {product} over the line. Here's the rundown.",
     wrap: "That's the board. Everything on it earned its place today.",
@@ -80,14 +80,14 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     needsMoney: true,
   },
   {
-    opening: "Hey. Everything's behaving itself — shall I give you the update?",
+    opening: "Hi Chad. Everything's behaving itself — shall I give you the update?",
     handover: "Yep. These are today's numbers.",
     software: "MCPs were the story today, {product} especially. Let me take you through it.",
     wrap: "And that's your evening. Nothing waiting, nothing broken.",
     closing: "Leave it with me.",
   },
   {
-    opening: "Right on time. All quiet out there — want your numbers?",
+    opening: "Hey Chad — how's it going? All quiet out there. Want your numbers?",
     handover: "Sure. Here's what happened.",
     software: "Everything moved a little; {product} moved a lot. Here's the log.",
     wrap: "That's everything. {product} did the heavy lifting today.",
@@ -102,21 +102,21 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     needsMoney: true,
   },
   {
-    opening: "Hey. Nothing needs a decision tonight — shall I run the update?",
+    opening: "Hey there, boss. Nothing needs a decision tonight — shall I run the update?",
     handover: "Course. Here's where we finished.",
     software: "{product} finally clicked into place today. Here's what shipped.",
     wrap: "That one's been dragging for a while. Good to see it done.",
     closing: "I'll flag anything that changes.",
   },
   {
-    opening: "Morning. The whole fleet's steady. Ready for the numbers?",
+    opening: "Morning, boss. The whole fleet's steady — ready for the numbers?",
     handover: "Sure thing. Here's your day.",
     software: "Quiet on most of it, but {product} had a proper day. Let me get the log.",
     wrap: "So — one big mover and the rest ticking along. No complaints.",
     closing: "All yours, Chad.",
   },
   {
-    opening: "Good evening. Takings are looking healthy — want the update?",
+    opening: "Good evening, Chad. Takings are looking healthy — want the update?",
     handover: "Absolutely. Here's how it went.",
     software: "The Suite picked up more MCPs today. {product} led it. Here's the rundown.",
     wrap: "Every one of those is a thing you no longer have to do yourself.",
@@ -131,7 +131,7 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     closing: "Any time at all.",
   },
   {
-    opening: "Evening. Revenue's running ahead of yesterday — want your updates?",
+    opening: "Evening, Chad. Revenue's running ahead of yesterday — want your updates?",
     handover: "Course. This is what came in.",
     software: "Real progress on {product} today. Here's what the log says.",
     wrap: "Better day than yesterday, and yesterday was decent.",
@@ -139,21 +139,21 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     needsMoney: true,
   },
   {
-    opening: "Hey. No fires anywhere — ready for your rundown?",
+    opening: "Hi boss. No fires anywhere — ready for your rundown?",
     handover: "Sure. Here's where we landed.",
     software: "Good news — the MCP work landed on {product}. Let me pull the log.",
     wrap: "And nothing on that board is waiting on you. That's the whole idea.",
     closing: "I'll be here if anything comes up.",
   },
   {
-    opening: "Right on time, boss. Everything's green. Want the numbers?",
+    opening: "Hey boss, right on time. Everything's green — want the numbers?",
     handover: "Yep. Here's your day.",
     software: "Productive one. {product} took most of it, {other} the rest. Here's the log.",
     wrap: "That's the fleet. Busy, and none of it needed you.",
     closing: "No trouble at all.",
   },
   {
-    opening: "Morning. Numbers are up on yesterday — shall I run them?",
+    opening: "Morning, Chad! Numbers are up on yesterday — shall I run them?",
     handover: "Of course. This is today.",
     software: "Big day for {product}. Let me take you through what shipped.",
     wrap: "Not a bad morning's work, and it's not even lunchtime.",
@@ -161,7 +161,7 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     needsMoney: true,
   },
   {
-    opening: "Evening. All on track and nothing waiting on you. Want the update?",
+    opening: "Hey Chad. All on track and nothing waiting on you — want the update?",
     handover: "Sure thing. Here's the day.",
     software: "The Titanium Suite's coming together. {product} and {other} both landed.",
     wrap: "It's starting to look like one thing rather than several. That's the goal.",
@@ -175,7 +175,7 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     closing: "Catch you later, Chad.",
   },
   {
-    opening: "Good to see you. Sales are ahead — want me to run the update?",
+    opening: "Hey Chad, good to see you. Sales are ahead — want me to run the update?",
     handover: "Course. Here's your day.",
     software: "Really strong day. The MCP on {product} is in and working. Here's the log.",
     wrap: "Money up, code shipped. Days like this are why we bother.",
@@ -183,14 +183,14 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     needsMoney: true,
   },
   {
-    opening: "Evening. Quiet one, all green. Shall I give you the rundown?",
+    opening: "Evening, boss. Quiet one, all green — shall I give you the rundown?",
     handover: "Yes. Here's how we finished.",
     software: "Everyone was busy. {product} came out furthest ahead. Here's the log.",
     wrap: "That's it. Everything moved, nothing broke.",
     closing: "Easy. I've got it from here.",
   },
   {
-    opening: "Hey. Nothing's gone wrong all night — want your update?",
+    opening: "Hi Chad. Nothing's gone wrong all night — want your update?",
     handover: "Sure. This is where we are.",
     software: "Mostly MCP work today, mostly on {product}. Let me show you.",
     wrap: "So that's your board, and it looked after itself.",
@@ -205,7 +205,7 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     needsMoney: true,
   },
   {
-    opening: "Evening. Everything's steady out there. Want me to run through it?",
+    opening: "Hey boss — how's it going? Everything's steady out there. Want me to run through it?",
     handover: "Course. These are today's numbers.",
     software: "{product} is in good shape now, and so is {other}. Here's what shipped.",
     wrap: "Two off the list. The board's looking tidier than it was.",
@@ -223,7 +223,7 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
   // These talk TO him — his evening, his coffee, the video he is filming, the
   // fact he was away — not at a camera. Still day-scoped, still never gushing.
   {
-    opening: "There he is. All quiet since you stepped out — want the numbers?",
+    opening: "Hey Chad! All quiet since you stepped out — want the numbers?",
     handover: "Course. Sit down, here's your day.",
     software: "You'll like this one. The MCP work on {product} went in clean. Here's the log.",
     wrap: "Honestly? Smooth day. You picked a good one to be out.",
@@ -237,14 +237,14 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     closing: "Night, boss. It's in good hands.",
   },
   {
-    opening: "Hey you. Everything held together while you were gone — updates?",
+    opening: "Hey Chad. Everything held together while you were gone — updates?",
     handover: "Yep. Here's what the day did.",
     software: "Good question. {product} answered it — here's what shipped.",
     wrap: "All of that, and you didn't have to touch any of it.",
     closing: "That's what I'm here for.",
   },
   {
-    opening: "Boss. Sales moved while you were at dinner — want to hear it?",
+    opening: "Hey boss. Sales moved while you were at dinner — want to hear it?",
     handover: "Thought so. Here you go.",
     software: "Dev's been heads-down. {product} came out the other side — here's the log.",
     wrap: "Money in, code out. That's the machine working.",
@@ -252,21 +252,21 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     needsMoney: true,
   },
   {
-    opening: "Look who's back. Nothing broke, nobody's waiting — numbers?",
+    opening: "Hey Chad, welcome back. Nothing broke, nobody's waiting — numbers?",
     handover: "Here's the shape of it.",
     software: "The Suite grew a little today. {product} did the growing. Let me show you.",
     wrap: "Tidy day. The kind that doesn't make headlines and pays for everything.",
     closing: "See you tomorrow, boss.",
   },
   {
-    opening: "Evening. I kept your seat warm and the fleet green — want your update?",
+    opening: "Evening, boss. I kept your seat warm and the fleet green — want your update?",
     handover: "Right then. Today, in order.",
     software: "Glad you asked. {product} and {other} both put in a shift. Here's the log.",
     wrap: "Not one thing up there needs a decision from you. By design.",
     closing: "I've got the night watch, Chad.",
   },
   {
-    opening: "There you are. The numbers came in better than I promised — want them?",
+    opening: "Hey Chad, there you are. The numbers came in better than I promised — want them?",
     handover: "With pleasure. Here's the day.",
     software: "Dev owes you nothing today — {product} shipped. Here's what it looks like.",
     wrap: "I said this morning it'd be a good day. I hate being wrong, so it was.",
@@ -288,14 +288,14 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     closing: "Good night, Chad. I mean it — actually rest.",
   },
   {
-    opening: "You picked a good moment. The day just wrapped — want the rundown?",
+    opening: "Hi Chad — good timing. The day just wrapped. Want the rundown?",
     handover: "Fresh off the press. Here.",
     software: "Ah, the good part. {product} — the MCP's live. Let me walk you through.",
     wrap: "That's a wrap on today. Tomorrow's already queued up.",
     closing: "Go be a person for a while, boss.",
   },
   {
-    opening: "Hey. Quick heads up — nothing needs you, but the numbers are worth hearing.",
+    opening: "Hey boss. We're moving right along — nothing needs you, but the numbers are worth hearing.",
     handover: "Told you. Here's the day.",
     software: "Dev quietly had one of their better days. {product}, mostly. Here's the log.",
     wrap: "The quiet ones are the good ones. This was a quiet one.",
@@ -303,7 +303,7 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     needsMoney: true,
   },
   {
-    opening: "Boss. Whatever you did today, do it again — the numbers liked it.",
+    opening: "Hey boss — whatever you did today, do it again. The numbers liked it.",
     handover: "See for yourself. Here's the day.",
     software: "Dev matched it. {product} over the line, {other} close. Here's the log.",
     wrap: "Days like this make the hard weeks worth it.",
@@ -311,14 +311,14 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     needsMoney: true,
   },
   {
-    opening: "Evening. You missed nothing and gained plenty — want the details?",
+    opening: "Evening, Chad. You missed nothing and gained plenty — want the details?",
     handover: "Right. The day, start to finish.",
     software: "Funny you ask — I just filed {product}'s update. Here's what went in.",
     wrap: "So no, you didn't need to check your phone at dinner.",
     closing: "Off you go, boss. I've got this.",
   },
   {
-    opening: "There he is. Fleet's green, coffee's on you — want your numbers?",
+    opening: "Hey Chad. Fleet's green, coffee's on you — want your numbers?",
     handover: "Deal. Here's the day.",
     software: "Dev's answer is {product}. Shipped, tested, in. Here's the log.",
     wrap: "Every light on that board is green because somebody built it right. That's you.",
@@ -332,7 +332,7 @@ export const WRITTEN_CONVERSATIONS: readonly WrittenConversation[] = [
     closing: "As it should be. Night, boss.",
   },
   {
-    opening: "Evening. Short version: everything worked. Want the long version?",
+    opening: "Hey boss. Short version: everything worked. Want the long version?",
     handover: "The long version, then. Here.",
     software: "Longer story on dev — worth it though. {product} finally behaved. Here's the log.",
     wrap: "The long version and the short version agree: good day.",

@@ -740,6 +740,13 @@ function onFilmSlateBlack(): void {
   if (demo.isArmed) {
     // Staged, not started: the take begins when HE does. The wake phrase runs
     // `takeToFilm`, which reads this request first.
+    //
+    // The film's own black goes up NOW, underneath the slate. The slate is
+    // dismissed the instant anything sets the routine running — any wake,
+    // any exchange, any race — and every path that failed to raise a black
+    // first has put the dashboard on camera (Chad, 2026-09-01, again). With
+    // it already here, there is no such path left.
+    demo.isBlackout = true;
     demo.stageTake(filmSlateScriptId);
   } else {
     demo.requestRoutine(filmSlateScriptId);
