@@ -22,9 +22,32 @@ import { REVEAL_MS } from "../../demo/demo-reveal-chime.js";
 /** The room fades in before it speaks — a voice from a black screen reads as
  *  a glitch on camera. */
 const ROOM_SETTLE_MS = 600;
-/** Long enough for the display to mount and paint its first frame behind the
- *  black. Cheaper than a flash of the old screen on camera. */
-const ROOM_PAINT_MS = 320;
+/** The black may not lift until the room is genuinely on screen. A fixed
+ *  320ms was a guess about how long mounting takes, and on a cold tab the
+ *  guess lost: the bloom opened onto the dashboard, again (Chad,
+ *  2026-09-01: “I still see that dashboard screen before the AI comes on”).
+ *  So the routine WATCHES for the stage instead — the element in the DOM,
+ *  then two painted frames so the canvas is real — with a cap so a broken
+ *  room cannot hold the film black forever. */
+const ROOM_PAINT_CAP_MS = 5000;
+
+async function waitForRoomPainted(): Promise<void> {
+  if (typeof document === "undefined") return;
+  const frame = (): Promise<void> =>
+    new Promise((resolve) =>
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame(() => resolve())
+        : setTimeout(resolve, 16),
+    );
+  const deadline = Date.now() + ROOM_PAINT_CAP_MS;
+  while (Date.now() < deadline) {
+    if (document.querySelector('[data-testid="display-stage"]') !== null) break;
+    await frame();
+  }
+  // Two more frames: mounted is not painted.
+  await frame();
+  await frame();
+}
 /** The beat on a cut between the orb and the node screen. */
 const CUT_BEAT_MS = 180;
 /** The constellation mounts and lays out before the first product speaks. */
@@ -122,13 +145,9 @@ export function useDemoRoutine(options: {
         demo.resetRoutineScene();
         ui.activateTab(GLOBAL_TAB_ID);
         options.showDisplay();
-        // PAINTED, not merely requested. Switching the view is a state change
-        // Vue renders on the next tick and the canvas needs a frame beyond
-        // that; lifting the black in the same breath revealed whatever screen
-        // was there before — he saw the dashboard flash through the hole
-        // (Chad, 2026-08-30).
+        // PAINTED, not merely requested — and watched, not guessed at.
         await nextTick();
-        await beat(ROOM_PAINT_MS);
+        await waitForRoomPainted();
         if (!demo.isRoutineRunning) return;
         // Dressed behind the black — the reveal shows a finished room.
         demo.isBlackout = false;
