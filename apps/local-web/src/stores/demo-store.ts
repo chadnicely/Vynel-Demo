@@ -31,6 +31,9 @@ import {
   type UpdateCategory,
 } from "../demo/demo-script-writer.js";
 import {
+  HUD_COUNT_RULE_ID,
+  NODE_COUNT_RULE_ID,
+  rollMetric,
   DEFAULT_METRIC_RULES,
   formatMetricRules,
   parseMetricRuleLines,
@@ -258,7 +261,18 @@ function readStoredRules(): MetricRule[] {
             Number.isFinite((rule as MetricRule).max),
         )
       : [];
-    return rules.length > 0 ? rules : DEFAULT_METRIC_RULES.map((rule) => ({ ...rule }));
+    if (rules.length === 0) return DEFAULT_METRIC_RULES.map((rule) => ({ ...rule }));
+    // A rules box saved before the shape rules existed gains them — otherwise
+    // the feature silently never arrives for anyone with a saved box.
+    for (const wanted of DEFAULT_METRIC_RULES) {
+      if (
+        (wanted.id === "huds" || wanted.id === "nodes") &&
+        !rules.some((rule) => rule.id === wanted.id)
+      ) {
+        rules.push({ ...wanted });
+      }
+    }
+    return rules;
   } catch {
     return DEFAULT_METRIC_RULES.map((rule) => ({ ...rule }));
   }
@@ -674,11 +688,21 @@ export const useDemoStore = defineStore("demo", () => {
   }
 
   function writeTakeLines(onlyProjectIds?: readonly string[]): DemoScriptLine[] {
+    // The take's SHAPE comes from the rules box: “# Huds” and “# Nodes” are
+    // ranges, and every take rolls its own counts inside them.
+    const countFrom = (id: string, fallback: number): number => {
+      const rule = metricRules.value.find((candidate) => candidate.id === id);
+      if (rule === undefined) return fallback;
+      return Math.max(1, rollMetric(rule, Math.random));
+    };
     return writeDemoTake({
       roster: projects.value,
       categories: updateCategories.value,
       rules: metricRules.value,
       random: Math.random,
+      openerCount: countFrom(HUD_COUNT_RULE_ID, 3),
+      closerCount: 0,
+      softwareCount: countFrom(NODE_COUNT_RULE_ID, 4),
       onlyProjectIds,
       usedUpdates: usedUpdates.value,
       alwaysProjectIds: alwaysProjectIds.value,

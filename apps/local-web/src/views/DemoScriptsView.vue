@@ -611,6 +611,8 @@ async function playWholeTake(script: DemoScript): Promise<void> {
         <code>leads: 300-1200</code> or <code>sales: $434-2340</code>. Put a
         dollar sign on money. Every video picks one number inside each range and
         sticks to it for the whole video, so it never contradicts itself.
+        <strong># Huds</strong> and <strong># Nodes</strong> are ranges too —
+        how many report lines and how many software updates each video speaks.
       </p>
 
       <textarea

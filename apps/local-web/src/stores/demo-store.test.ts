@@ -454,6 +454,45 @@ describe("demo-store two-part takes", () => {
     expect(demo.takeLines(take, "software")).toHaveLength(0);
   });
 
+  it("# Huds and # Nodes rules shape every take", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    // Pin both ranges to a single value so the shape is exact.
+    demo.setMetricRulesText("# Huds: 2-2\n# Nodes: 3-3\nsales: $400-2300");
+    demo.fillQueue();
+    for (const take of demo.scripts) {
+      const huds = take.lines.filter((line) => line.surface === "hud").length;
+      const nodes = take.lines.filter((line) => line.surface === "nodes").length;
+      expect(huds).toBe(2);
+      expect(nodes).toBe(3);
+    }
+  });
+
+  it("a range rolls different shapes across a queue", () => {
+    const demo = useDemoStore();
+    stockUpdates(demo);
+    demo.setMetricRulesText("# Huds: 1-4\n# Nodes: 2-4");
+    demo.fillQueue();
+    const shapes = new Set(
+      demo.scripts.map(
+        (take) => take.lines.filter((line) => line.surface === "hud").length,
+      ),
+    );
+    // Ten rolls of 1-4 landing identical every time would be a broken die.
+    expect(shapes.size).toBeGreaterThan(1);
+  });
+
+  it("a saved rules box from before the shape rules gains them", () => {
+    localStorage.setItem(
+      "vynel.demo-rules",
+      JSON.stringify({ rules: [{ id: "sales", label: "Sales", min: 400, max: 2300, money: true }] }),
+    );
+    setActivePinia(createPinia());
+    const demo = useDemoStore();
+    expect(demo.metricRules.some((rule) => rule.id === "huds")).toBe(true);
+    expect(demo.metricRules.some((rule) => rule.id === "nodes")).toBe(true);
+  });
+
   it("the Demo button still plays a take end to end", () => {
     const demo = useDemoStore();
     stockUpdates(demo);

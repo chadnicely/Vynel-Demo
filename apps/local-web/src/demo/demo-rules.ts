@@ -20,7 +20,17 @@ export interface MetricRule {
   readonly percent?: boolean;
 }
 
+/** THE TAKE'S SHAPE IS A RULE TOO (Chad, 2026-09-03: "in the rules lets add
+ *  a range for # Huds / # Nodes"). Every take rolls how many report lines
+ *  and how many product updates it speaks, inside these ranges — so a reel
+ *  of takes varies in length and rhythm, not just in wording. They live in
+ *  the same box as the money rules and are written the same way. */
+export const HUD_COUNT_RULE_ID = "huds";
+export const NODE_COUNT_RULE_ID = "nodes";
+
 export const DEFAULT_METRIC_RULES: readonly MetricRule[] = [
+  { id: HUD_COUNT_RULE_ID, label: "# Huds", min: 2, max: 3, money: false },
+  { id: NODE_COUNT_RULE_ID, label: "# Nodes", min: 3, max: 4, money: false },
   { id: "sales", label: "Sales", min: 400, max: 2300, money: true },
   { id: "leads", label: "Leads", min: 375, max: 1200, money: false },
   { id: "quiz-submissions", label: "Quiz submissions", min: 40, max: 600, money: false },
