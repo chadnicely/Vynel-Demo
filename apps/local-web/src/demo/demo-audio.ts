@@ -52,6 +52,7 @@ interface RecordedLine {
 // no 409 per line, and a provider that falls over mid-run drops back to local
 // rather than leaving the take silent.
 import { announceSpokenSentence } from "../composables/voice/spoken-audio-player.js";
+import { speakableText } from "./demo-speakable.js";
 import { readCachedLines, writeCachedLine } from "./demo-audio-cache.js";
 
 type VoiceDoor = "unknown" | "cloud" | "local";
@@ -127,7 +128,10 @@ export function createDemoAudioBank(): DemoAudioBank {
   let resolvePlaying: (() => void) | null = null;
   let door: VoiceDoor = "unknown";
 
-  async function fetchWav(text: string, signal?: AbortSignal): Promise<Blob | null> {
+  async function fetchWav(written: string, signal?: AbortSignal): Promise<Blob | null> {
+    // The voice gets the SPOKEN form; the caller's text stays the written
+    // one — it is the bank key and the caption.
+    const text = speakableText(written);
     if (door !== "local") {
       const cloud = await postForWav(PROVIDER_URL, text, signal);
       if (cloud !== null && cloud.ok) {

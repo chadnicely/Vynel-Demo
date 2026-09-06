@@ -150,32 +150,19 @@ const SOFTWARE_HANDOFFS = [
  *  Built as sentences rather than lead + tail: the combinatorial version
  *  said "Happy to" every third take, because a lead that pairs with anything
  *  gets used with everything. */
+/** A LONGER GOODBYE (Chad, 2026-09-05): the goodbye plus one small human
+ *  thing after it — a clipped word after his thanks read as hanging up. */
 const CLOSINGS = [
-  "No problem, boss.",
-  "Have a good one, Chad.",
-  "I'll keep you updated.",
-  "You got it, boss.",
-  "Any time — I'll keep watch.",
-  "Course. I'll shout if anything changes.",
-  "Anything moves, you'll be the first to know.",
-  "That's the lot. Have a good evening.",
-  "All yours, Chad.",
-  "I'll be here if anything comes up.",
-  "No trouble at all.",
-  "Consider it handled.",
-  "I'll keep the lights on.",
-  "Catch you later, Chad.",
-  "Say the word if you need more.",
-  "I'll flag anything that changes.",
-  "Go enjoy your night, boss.",
-  "Easy. I've got it from here.",
-  "Whenever you need me, Chad.",
-  "Done and dusted. Night, boss.",
-  "Leave it with me.",
-  "Sleep well — I'll be watching it.",
-  "Sound. I'll keep it moving.",
-  "Nice one, boss. Talk soon.",
+  "No problem, boss. That's the job — go get your evening.",
+  "You got it, Chad. I'll have the next batch of numbers waiting.",
+  "Any time. I'll keep watch overnight and shout if anything needs you.",
+  "Course, boss. The fleet runs without you until morning — that's the point.",
+  "Happy to. Anything moves tonight, you'll be the first to know.",
+  "No trouble at all. Keeping you out of the weeds is the whole job.",
+  "Leave it with me, Chad. The machines and I will take it from here.",
+  "Rest easy, boss. The morning brief writes itself while you sleep.",
 ];
+
 
 // ── Building one ──────────────────────────────────────────────────────────
 
